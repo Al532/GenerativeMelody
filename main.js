@@ -3,6 +3,10 @@ import { instruments, instrumentRanges } from "./assets.js";
 const STORAGE_KEY = "melody-prototype-settings-v1";
 const NOTE_DURATION_MS = 250;
 const FADE_OUT_MS = 50;
+const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
+const MAX_B_TO_A_LEAP_SEMITONES = 2;
+const MAX_E_TO_AB_LEAP_SEMITONES = 1;
+const MAX_SEQUENCE_RANGE_SEMITONES = 14;
 
 const primaryTonesInput = document.querySelector("#primary-tones");
 const secondaryTonesInput = document.querySelector("#secondary-tones");
@@ -12,6 +16,7 @@ const ambitusMaxInput = document.querySelector("#ambitus-max");
 const noteCountInput = document.querySelector("#note-count");
 const instrumentSelect = document.querySelector("#instrument-select");
 const generateButton = document.querySelector("#generate-btn");
+const replayButton = document.querySelector("#replay-btn");
 const statusLabel = document.querySelector("#status");
 const resultInstrument = document.querySelector("#result-instrument");
 const resultSequence = document.querySelector("#result-sequence");
@@ -219,10 +224,10 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
   // - Après E, la note suivante doit être A ou B avec un mouvement conjoint serré (1 demi-ton max).
   // - La dernière note doit être A ou B.
   // - Intervalle max entre deux notes consécutives: 12 demi-tons.
-  // - Intervalle max entre n et n+2: 14 demi-tons.
+  // - Écart max global entre la note la plus grave et la plus aiguë de la séquence: 14 demi-tons.
   const isTransitionAllowed = (prevMidi, prevCategory, currentMidi, currentCategory) => {
     const leap = Math.abs(currentMidi - prevMidi);
-    if (leap > 12) {
+    if (leap > MAX_CONSECUTIVE_LEAP_SEMITONES) {
       return false;
     }
 
@@ -234,11 +239,11 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
       if (currentCategory === "B") {
         return leap === 0;
       }
-      return currentCategory === "A" && leap <= 2;
+      return currentCategory === "A" && leap <= MAX_B_TO_A_LEAP_SEMITONES;
     }
 
     if (prevCategory === "E") {
-      return (currentCategory === "A" || currentCategory === "B") && leap <= 1;
+      return (currentCategory === "A" || currentCategory === "B") && leap <= MAX_E_TO_AB_LEAP_SEMITONES;
     }
 
     return false;
@@ -259,6 +264,8 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
   const failureMemo = new Set();
   const sequence = [];
   const categories = [];
+  let sequenceMin = Infinity;
+  let sequenceMax = -Infinity;
 
   const search = (index) => {
     if (index === noteCount) {
@@ -268,9 +275,8 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
 
     const prevMidi = index > 0 ? sequence[index - 1] : null;
     const prevCategory = index > 0 ? categories[index - 1] : null;
-    const prev2Midi = index > 1 ? sequence[index - 2] : null;
 
-    const stateKey = `${index}|${prevMidi ?? "_"}|${prevCategory ?? "_"}|${prev2Midi ?? "_"}`;
+    const stateKey = `${index}|${prevMidi ?? "_"}|${prevCategory ?? "_"}|${sequenceMin}|${sequenceMax}`;
     if (failureMemo.has(stateKey)) {
       return false;
     }
@@ -290,12 +296,19 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
         continue;
       }
 
-      if (index > 1 && Math.abs(midi - prev2Midi) > 14) {
+      const nextMin = Math.min(sequenceMin, midi);
+      const nextMax = Math.max(sequenceMax, midi);
+      if (nextMax - nextMin > MAX_SEQUENCE_RANGE_SEMITONES) {
         continue;
       }
 
+      const previousMin = sequenceMin;
+      const previousMax = sequenceMax;
+
       sequence.push(midi);
       categories.push(category);
+      sequenceMin = nextMin;
+      sequenceMax = nextMax;
 
       if (search(index + 1)) {
         return true;
@@ -303,6 +316,8 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
 
       sequence.pop();
       categories.pop();
+      sequenceMin = previousMin;
+      sequenceMax = previousMax;
     }
 
     failureMemo.add(stateKey);
@@ -315,6 +330,8 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
 
   return sequence;
 };
+
+let lastGeneratedSequence = null;
 
 const playSequence = async (instrument, midiSequence) => {
   const context = await ensureAudioContext();
@@ -372,11 +389,37 @@ const handleGenerate = async () => {
     persistSettings();
     await playSequence(instrument, midiSequence);
 
+    lastGeneratedSequence = { instrument, midiSequence };
+    replayButton.disabled = false;
+
     setStatus(`Séquence générée selon les contraintes (${noteCount} notes).`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue.";
     setStatus(message, true);
   } finally {
+    generateButton.disabled = false;
+  }
+};
+
+
+const handleReplay = async () => {
+  if (!lastGeneratedSequence) {
+    setStatus("Aucune séquence à rejouer.", true);
+    return;
+  }
+
+  replayButton.disabled = true;
+  generateButton.disabled = true;
+  setStatus("Replay de la dernière séquence…");
+
+  try {
+    await playSequence(lastGeneratedSequence.instrument, lastGeneratedSequence.midiSequence);
+    setStatus("Dernière séquence rejouée.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erreur inconnue.";
+    setStatus(message, true);
+  } finally {
+    replayButton.disabled = false;
     generateButton.disabled = false;
   }
 };
@@ -399,3 +442,4 @@ persistSettings();
 });
 
 generateButton.addEventListener("click", handleGenerate);
+replayButton.addEventListener("click", handleReplay);
