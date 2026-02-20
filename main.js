@@ -9,6 +9,15 @@ const MAX_E_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
 const MAX_FINAL_B_PREVIOUS_LEAP_SEMITONES = 2;
 const REPETITION_PROBABILITY_FACTOR = 0.25;
+const DEFAULT_SETTINGS = {
+  primaryTones: "e, g, b",
+  secondaryTones: "f#, a, c, d",
+  forbiddenTones: "g#, c#",
+  ambitusMin: "50",
+  ambitusMax: "72",
+  noteCount: "6",
+  instrument: "Piano",
+};
 
 const primaryTonesInput = document.querySelector("#primary-tones");
 const secondaryTonesInput = document.querySelector("#secondary-tones");
@@ -114,19 +123,28 @@ const persistSettings = () => {
 const restoreSettings = () => {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) {
+    primaryTonesInput.value = DEFAULT_SETTINGS.primaryTones;
+    secondaryTonesInput.value = DEFAULT_SETTINGS.secondaryTones;
+    forbiddenTonesInput.value = DEFAULT_SETTINGS.forbiddenTones;
+    ambitusMinInput.value = DEFAULT_SETTINGS.ambitusMin;
+    ambitusMaxInput.value = DEFAULT_SETTINGS.ambitusMax;
+    noteCountInput.value = DEFAULT_SETTINGS.noteCount;
+    instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     return;
   }
 
   try {
     const data = JSON.parse(raw);
-    primaryTonesInput.value = data.primaryTones ?? "";
-    secondaryTonesInput.value = data.secondaryTones ?? "";
-    forbiddenTonesInput.value = data.forbiddenTones ?? "";
-    ambitusMinInput.value = data.ambitusMin ?? ambitusMinInput.value;
-    ambitusMaxInput.value = data.ambitusMax ?? ambitusMaxInput.value;
-    noteCountInput.value = data.noteCount ?? noteCountInput.value;
+    primaryTonesInput.value = data.primaryTones ?? DEFAULT_SETTINGS.primaryTones;
+    secondaryTonesInput.value = data.secondaryTones ?? DEFAULT_SETTINGS.secondaryTones;
+    forbiddenTonesInput.value = data.forbiddenTones ?? DEFAULT_SETTINGS.forbiddenTones;
+    ambitusMinInput.value = data.ambitusMin ?? DEFAULT_SETTINGS.ambitusMin;
+    ambitusMaxInput.value = data.ambitusMax ?? DEFAULT_SETTINGS.ambitusMax;
+    noteCountInput.value = data.noteCount ?? DEFAULT_SETTINGS.noteCount;
     if (data.instrument && instruments.includes(data.instrument)) {
       instrumentSelect.value = data.instrument;
+    } else {
+      instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     }
   } catch {
     localStorage.removeItem(STORAGE_KEY);
