@@ -1,78 +1,76 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ear Training Template</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Prototype Génération de Mélodie</title>
+  <link rel="stylesheet" href="styles.css?v=1">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
   <header class="hero">
     <div>
-      <p class="eyebrow">Template</p>
-      <h1>Ear Training Starter</h1>
+      <p class="eyebrow">Prototype</p>
+      <h1>Générateur de mélodie</h1>
       <p class="lead">
-        This repository is intentionally minimal. Use the assets below to build your own ear training
-        workflow, UI, and scoring logic.
+        Configurez les paramètres, générez une série aléatoire dans l’ambitus, puis écoutez la séquence avec l’instrument sélectionné.
       </p>
     </div>
   </header>
 
   <main>
     <section class="panel">
-      <h2>What remains</h2>
-      <p>
-        All interactive logic has been removed. Only static assets and sample data remain so you can
-        fork this project and focus on your own training experience.
-      </p>
+      <h2>Paramètres</h2>
+      <div class="form-grid">
+        <label class="field" for="primary-tones">
+          <span>Primary tones (non utilisé pour l’instant)</span>
+          <textarea id="primary-tones" rows="2" placeholder="Ex: c#, e, g"></textarea>
+        </label>
+
+        <label class="field" for="secondary-tones">
+          <span>Secondary tones (non utilisé pour l’instant)</span>
+          <textarea id="secondary-tones" rows="2" placeholder="Ex: d, f#, a"></textarea>
+        </label>
+
+        <label class="field" for="ambitus-min">
+          <span>Ambitus min (MIDI)</span>
+          <input id="ambitus-min" type="number" min="0" max="127" step="1" value="60">
+        </label>
+
+        <label class="field" for="ambitus-max">
+          <span>Ambitus max (MIDI)</span>
+          <input id="ambitus-max" type="number" min="0" max="127" step="1" value="72">
+        </label>
+
+        <label class="field" for="note-count">
+          <span>Nombre de notes</span>
+          <input id="note-count" type="number" min="1" max="128" step="1" value="8">
+        </label>
+
+        <label class="field" for="instrument-select">
+          <span>Instrument</span>
+          <select id="instrument-select"></select>
+        </label>
+      </div>
+
+      <div class="controls">
+        <button class="primary" id="generate-btn" type="button">Générer</button>
+      </div>
+
+      <p id="status" class="status">Prêt.</p>
     </section>
 
     <section class="panel">
-      <h2>Available assets</h2>
-      <div class="asset-grid">
-        <article class="asset-card">
-          <h3>Pitch samples</h3>
-          <p>
-            Use the MP3 samples for note recognition drills and interval playback. Play a random
-            instrument sample to preview the library, or trigger the feedback cue.
-          </p>
-          <div class="controls">
-            <button class="primary" type="button" id="play-random">Play random sample</button>
-          </div>
-          <dl class="sample-meta">
-            <div>
-              <dt>Chroma</dt>
-              <dd id="sample-chroma">—</dd>
-            </div>
-            <div>
-              <dt>Midi note</dt>
-              <dd id="sample-midi">—</dd>
-            </div>
-            <div>
-              <dt>Instrument</dt>
-              <dd id="sample-instrument">—</dd>
-            </div>
-          </dl>
-        </article>
-        <article class="asset-card">
-          <h3>Feedback audio</h3>
-          <p>Short confirmation cue.</p>
-          <div class="controls">
-            <button class="primary" type="button" id="play-feedback">Play feedback sample</button>
-          </div>
-        </article>
-      </div>
+      <h2>Résultat</h2>
+      <p><strong>Instrument:</strong> <span id="result-instrument">—</span></p>
+      <p><strong>Série:</strong> <span id="result-sequence">—</span></p>
     </section>
-
-      
-
   </main>
 
   <footer>
-    <p>Ready to build your own ear training experience.</p>
+    <p>Version prototype: génération aléatoire sur 12 demi-tons dans l’ambitus saisi.</p>
   </footer>
 
-  <script type="module" src="main.js"></script>
+  <script type="module" src="main.js?v=1"></script>
 </body>
 </html>
