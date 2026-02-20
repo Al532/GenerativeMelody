@@ -44,6 +44,15 @@ const TONE_TO_PITCH_CLASS = {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
+const shuffled = (values) => {
+  const copy = [...values];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]];
+  }
+  return copy;
+};
+
 const midiToLabel = (midi) => {
   const chroma = NOTE_LABELS[midi % 12];
   const octave = Math.floor(midi / 12) - 1;
@@ -262,8 +271,12 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
       return false;
     }
 
-    for (const candidate of playable) {
+    for (const candidate of shuffled(playable)) {
       const { midi, category } = candidate;
+
+      if (index === 0 && category !== "A" && category !== "B") {
+        continue;
+      }
 
       if (index === noteCount - 1 && category !== "A" && category !== "B") {
         continue;
