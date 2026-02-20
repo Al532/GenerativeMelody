@@ -214,7 +214,8 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
   // Règles de génération:
   // - A = primary notes, B = secondary notes, C = forbidden notes, E = toutes les autres notes.
   // - Après A, la note suivante peut être A, B ou E.
-  // - Après B, la note suivante doit être A avec un mouvement conjoint (2 demi-tons max).
+  // - Après B, la note suivante doit être A avec un mouvement conjoint (2 demi-tons max),
+  //   sauf répétition exacte d'une note B.
   // - Après E, la note suivante doit être A ou B avec un mouvement conjoint serré (1 demi-ton max).
   // - La dernière note doit être A ou B.
   // - Intervalle max entre deux notes consécutives: 12 demi-tons.
@@ -230,6 +231,9 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
     }
 
     if (prevCategory === "B") {
+      if (currentCategory === "B") {
+        return leap === 0;
+      }
       return currentCategory === "A" && leap <= 2;
     }
 
