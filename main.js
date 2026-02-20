@@ -6,7 +6,6 @@ const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
 const MAX_B_TO_A_LEAP_SEMITONES = 2;
 const MAX_E_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
-const MAX_FINAL_B_PREVIOUS_LEAP_SEMITONES = 2;
 const REPETITION_PROBABILITY_FACTOR = 0.25;
 
 const RHYTHM_LEVEL = 4;
@@ -441,20 +440,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
   const search = (index) => {
     if (index === noteCount) {
       const finalCategory = categories[categories.length - 1];
-      if (finalCategory === "A") {
-        return true;
-      }
-      if (finalCategory !== "B") {
-        return false;
-      }
-      if (sequence.length < 2) {
-        return false;
-      }
-      const finalLeap = Math.abs(sequence[sequence.length - 1] - sequence[sequence.length - 2]);
-      if (finalLeap === 0) {
-        return false;
-      }
-      return finalLeap <= MAX_FINAL_B_PREVIOUS_LEAP_SEMITONES;
+      return finalCategory === "A";
     }
 
     const prevPrevMidi = index > 1 ? sequence[index - 2] : null;
@@ -473,16 +459,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
         continue;
       }
 
-      if (index === noteCount - 1 && category !== "A" && category !== "B") {
-        continue;
-      }
-
-      if (
-        index === noteCount - 1
-        && prevCategory === "B"
-        && category === "B"
-        && prevMidi === midi
-      ) {
+      if (index === noteCount - 1 && category !== "A") {
         continue;
       }
 
