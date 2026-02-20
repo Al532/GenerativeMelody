@@ -18,9 +18,31 @@ const resultSequence = document.querySelector("#result-sequence");
 
 const sampleCache = new Map();
 const NOTE_LABELS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+const TONE_TO_PITCH_CLASS = {
+  c: 0,
+  "b#": 0,
+  "c#": 1,
+  db: 1,
+  d: 2,
+  "d#": 3,
+  eb: 3,
+  e: 4,
+  fb: 4,
+  "e#": 5,
+  f: 5,
+  "f#": 6,
+  gb: 6,
+  g: 7,
+  "g#": 8,
+  ab: 8,
+  a: 9,
+  "a#": 10,
+  bb: 10,
+  b: 11,
+  cb: 11,
+};
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
 const midiToLabel = (midi) => {
   const chroma = NOTE_LABELS[midi % 12];
@@ -107,8 +129,175 @@ const loadSampleBuffer = async (instrument, midi, context) => {
   return audioBuffer;
 };
 
-const generateRandomSequence = (minMidi, maxMidi, noteCount) =>
-  Array.from({ length: noteCount }, () => randomInt(minMidi, maxMidi));
+const parseToneClasses = (raw, label) => {
+  const result = new Set();
+  const tokens = raw
+    .split(/[\s,;]+/)
+    .map((token) => token.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const token of tokens) {
+    const normalized = token.replace(/♯/g, "#").replace(/♭/g, "b");
+    const pitchClass = TONE_TO_PITCH_CLASS[normalized];
+    if (pitchClass === undefined) {
+      throw new Error(`Note invalide dans ${label}: "${token}".`);
+    }
+    result.add(pitchClass);
+  }
+
+  return result;
+};
+
+const createToneGroups = () => {
+  const primary = parseToneClasses(primaryTonesInput.value, "Primary tones");
+  const secondary = parseToneClasses(secondaryTonesInput.value, "Secondary tones");
+  const forbidden = parseToneClasses(forbiddenTonesInput.value, "Forbidden tones");
+
+  for (const pitchClass of primary) {
+    if (secondary.has(pitchClass) || forbidden.has(pitchClass)) {
+      throw new Error("Une note ne peut pas être à la fois primary et secondary/forbidden.");
+    }
+  }
+
+  for (const pitchClass of secondary) {
+    if (forbidden.has(pitchClass)) {
+      throw new Error("Une note ne peut pas être à la fois secondary et forbidden.");
+    }
+  }
+
+  return { primary, secondary, forbidden };
+};
+
+const parseInputs = () => {
+  const minInput = Number.parseInt(ambitusMinInput.value, 10);
+  const maxInput = Number.parseInt(ambitusMaxInput.value, 10);
+  const countInput = Number.parseInt(noteCountInput.value, 10);
+
+  const sanitizedMin = Number.isNaN(minInput) ? 0 : clamp(minInput, 0, 127);
+  const sanitizedMax = Number.isNaN(maxInput) ? 127 : clamp(maxInput, 0, 127);
+
+  const minMidi = Math.min(sanitizedMin, sanitizedMax);
+  const maxMidi = Math.max(sanitizedMin, sanitizedMax);
+  const noteCount = Number.isNaN(countInput) ? 8 : clamp(countInput, 1, 128);
+
+  ambitusMinInput.value = String(minMidi);
+  ambitusMaxInput.value = String(maxMidi);
+  noteCountInput.value = String(noteCount);
+
+  return { minMidi, maxMidi, noteCount };
+};
+
+const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
+  const pitchClassCategory = (midi) => {
+    const pitchClass = midi % 12;
+    if (toneGroups.primary.has(pitchClass)) {
+      return "A";
+    }
+    if (toneGroups.secondary.has(pitchClass)) {
+      return "B";
+    }
+    if (toneGroups.forbidden.has(pitchClass)) {
+      return "C";
+    }
+    return "E";
+  };
+
+  // Règles de génération:
+  // - A = primary notes, B = secondary notes, C = forbidden notes, E = toutes les autres notes.
+  // - Après A, la note suivante peut être A, B ou E.
+  // - Après B, la note suivante doit être A avec un mouvement conjoint (2 demi-tons max).
+  // - Après E, la note suivante doit être A ou B avec un mouvement conjoint serré (1 demi-ton max).
+  // - La dernière note doit être A ou B.
+  // - Intervalle max entre deux notes consécutives: 12 demi-tons.
+  // - Intervalle max entre n et n+2: 14 demi-tons.
+  const isTransitionAllowed = (prevMidi, prevCategory, currentMidi, currentCategory) => {
+    const leap = Math.abs(currentMidi - prevMidi);
+    if (leap > 12) {
+      return false;
+    }
+
+    if (prevCategory === "A") {
+      return currentCategory === "A" || currentCategory === "B" || currentCategory === "E";
+    }
+
+    if (prevCategory === "B") {
+      return currentCategory === "A" && leap <= 2;
+    }
+
+    if (prevCategory === "E") {
+      return (currentCategory === "A" || currentCategory === "B") && leap <= 1;
+    }
+
+    return false;
+  };
+
+  const playable = [];
+  for (let midi = minMidi; midi <= maxMidi; midi += 1) {
+    const category = pitchClassCategory(midi);
+    if (category !== "C") {
+      playable.push({ midi, category });
+    }
+  }
+
+  if (playable.length === 0) {
+    throw new Error("Aucune note disponible après exclusion des forbidden tones.");
+  }
+
+  const failureMemo = new Set();
+  const sequence = [];
+  const categories = [];
+
+  const search = (index) => {
+    if (index === noteCount) {
+      const finalCategory = categories[categories.length - 1];
+      return finalCategory === "A" || finalCategory === "B";
+    }
+
+    const prevMidi = index > 0 ? sequence[index - 1] : null;
+    const prevCategory = index > 0 ? categories[index - 1] : null;
+    const prev2Midi = index > 1 ? sequence[index - 2] : null;
+
+    const stateKey = `${index}|${prevMidi ?? "_"}|${prevCategory ?? "_"}|${prev2Midi ?? "_"}`;
+    if (failureMemo.has(stateKey)) {
+      return false;
+    }
+
+    for (const candidate of playable) {
+      const { midi, category } = candidate;
+
+      if (index === noteCount - 1 && category !== "A" && category !== "B") {
+        continue;
+      }
+
+      if (index > 0 && !isTransitionAllowed(prevMidi, prevCategory, midi, category)) {
+        continue;
+      }
+
+      if (index > 1 && Math.abs(midi - prev2Midi) > 14) {
+        continue;
+      }
+
+      sequence.push(midi);
+      categories.push(category);
+
+      if (search(index + 1)) {
+        return true;
+      }
+
+      sequence.pop();
+      categories.pop();
+    }
+
+    failureMemo.add(stateKey);
+    return false;
+  };
+
+  if (!search(0)) {
+    throw new Error("Impossible de générer une mélodie valide avec ces contraintes.");
+  }
+
+  return sequence;
+};
 
 const playSequence = async (instrument, midiSequence) => {
   const context = await ensureAudioContext();
@@ -138,25 +327,6 @@ const playSequence = async (instrument, midiSequence) => {
   });
 };
 
-const parseInputs = () => {
-  const minInput = Number.parseInt(ambitusMinInput.value, 10);
-  const maxInput = Number.parseInt(ambitusMaxInput.value, 10);
-  const countInput = Number.parseInt(noteCountInput.value, 10);
-
-  const sanitizedMin = Number.isNaN(minInput) ? 0 : clamp(minInput, 0, 127);
-  const sanitizedMax = Number.isNaN(maxInput) ? 127 : clamp(maxInput, 0, 127);
-
-  const minMidi = Math.min(sanitizedMin, sanitizedMax);
-  const maxMidi = Math.max(sanitizedMin, sanitizedMax);
-  const noteCount = Number.isNaN(countInput) ? 8 : clamp(countInput, 1, 128);
-
-  ambitusMinInput.value = String(minMidi);
-  ambitusMaxInput.value = String(maxMidi);
-  noteCountInput.value = String(noteCount);
-
-  return { minMidi, maxMidi, noteCount };
-};
-
 const handleGenerate = async () => {
   generateButton.disabled = true;
   setStatus("Génération…");
@@ -164,6 +334,7 @@ const handleGenerate = async () => {
   try {
     const instrument = instrumentSelect.value;
     const { minMidi, maxMidi, noteCount } = parseInputs();
+    const toneGroups = createToneGroups();
     const range = instrumentRanges[instrument];
 
     const playableMin = Math.max(minMidi, range.min);
@@ -175,7 +346,7 @@ const handleGenerate = async () => {
       );
     }
 
-    const midiSequence = generateRandomSequence(playableMin, playableMax, noteCount);
+    const midiSequence = buildMelody(playableMin, playableMax, noteCount, toneGroups);
     const labels = midiSequence.map(midiToLabel);
 
     resultInstrument.textContent = instrument;
@@ -184,9 +355,7 @@ const handleGenerate = async () => {
     persistSettings();
     await playSequence(instrument, midiSequence);
 
-    setStatus(
-      `Séquence générée (${noteCount} notes, ${NOTE_DURATION_MS}ms/note, fade out ${FADE_OUT_MS}ms).`
-    );
+    setStatus(`Séquence générée selon les contraintes (${noteCount} notes).`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue.";
     setStatus(message, true);

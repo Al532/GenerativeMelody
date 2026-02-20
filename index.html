@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=4">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <p class="site-version">Version du site&nbsp;: v3</p>
+  <p class="site-version">Version du site&nbsp;: v4</p>
   <header class="hero">
     <div>
       <p class="eyebrow">Prototype</p>
       <h1>Générateur de mélodie</h1>
       <p class="lead">
-        Configurez les paramètres, générez une série aléatoire dans l’ambitus, puis écoutez la séquence avec l’instrument sélectionné.
+        Configurez les paramètres, générez une mélodie contrainte par les règles A/B/C/E, puis écoutez la séquence avec l’instrument sélectionné.
       </p>
     </div>
   </header>
@@ -24,17 +24,17 @@
       <h2>Paramètres</h2>
       <div class="form-grid">
         <label class="field" for="primary-tones">
-          <span>Primary tones (non utilisé pour l’instant)</span>
+          <span>Primary tones (A)</span>
           <textarea id="primary-tones" rows="2" placeholder="Ex: c#, e, g"></textarea>
         </label>
 
         <label class="field" for="secondary-tones">
-          <span>Secondary tones (non utilisé pour l’instant)</span>
+          <span>Secondary tones (B)</span>
           <textarea id="secondary-tones" rows="2" placeholder="Ex: d, f#, a"></textarea>
         </label>
 
         <label class="field" for="forbidden-tones">
-          <span>Forbidden tones (non utilisé pour l’instant)</span>
+          <span>Forbidden tones (C)</span>
           <textarea id="forbidden-tones" rows="2" placeholder="Ex: db, gb, bb"></textarea>
         </label>
 
@@ -74,9 +74,9 @@
   </main>
 
   <footer>
-    <p>Version prototype v3: génération aléatoire sur 12 demi-tons dans l’ambitus saisi.</p>
+    <p>Version prototype v4: génération déterministe avec contraintes A/B/C/E.</p>
   </footer>
 
-  <script type="module" src="main.js?v=3"></script>
+  <script type="module" src="main.js?v=4"></script>
 </body>
 </html>
