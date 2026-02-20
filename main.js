@@ -522,6 +522,30 @@ const scheduleKick = (context, whenSeconds) => {
   oscillator.stop(whenSeconds + 0.16);
 };
 
+const scheduleHiHat = (context, whenSeconds) => {
+  const oscillator = context.createOscillator();
+  const gainNode = context.createGain();
+  const highPass = context.createBiquadFilter();
+
+  oscillator.type = "square";
+  oscillator.frequency.setValueAtTime(7800, whenSeconds);
+
+  highPass.type = "highpass";
+  highPass.frequency.setValueAtTime(6500, whenSeconds);
+  highPass.Q.setValueAtTime(0.8, whenSeconds);
+
+  gainNode.gain.setValueAtTime(0.0001, whenSeconds);
+  gainNode.gain.exponentialRampToValueAtTime(0.22, whenSeconds + 0.002);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.055);
+
+  oscillator.connect(highPass);
+  highPass.connect(gainNode);
+  gainNode.connect(context.destination);
+
+  oscillator.start(whenSeconds);
+  oscillator.stop(whenSeconds + 0.06);
+};
+
 const playSequence = async (instrument, midiSequence, rhythm) => {
   const context = await ensureAudioContext();
   const buffers = await Promise.all(midiSequence.map((midi) => loadSampleBuffer(instrument, midi, context)));
@@ -529,30 +553,43 @@ const playSequence = async (instrument, midiSequence, rhythm) => {
   const subdivDur = (60 / rhythm.bpm) / 4;
   const noteDurationSeconds = Math.max(0.11, subdivDur * 0.9);
   const startAt = context.currentTime + 0.03;
+  const introSubdivisions = 8;
+  const sequenceRepeats = 2;
+  const sequenceLengthSubdivisions = RHYTHM_GRID_SIZE;
+  const totalSequenceSubdivisions = sequenceLengthSubdivisions * sequenceRepeats;
+  const melodyStartAt = startAt + introSubdivisions * subdivDur;
 
-  for (let beatIndex = 0; beatIndex < 4; beatIndex += 1) {
-    scheduleKick(context, startAt + beatIndex * 4 * subdivDur);
+  for (let hitIndex = 0; hitIndex < 4; hitIndex += 1) {
+    const hiHatStart = startAt + hitIndex * 2 * subdivDur;
+    scheduleHiHat(context, hiHatStart);
   }
 
-  buffers.forEach((buffer, index) => {
-    const event = rhythm.noteEvents[index];
-    const source = context.createBufferSource();
-    const gainNode = context.createGain();
-    source.buffer = buffer;
-    source.connect(gainNode);
-    gainNode.connect(context.destination);
+  for (let beatIndex = 0; beatIndex < totalSequenceSubdivisions / 4; beatIndex += 1) {
+    scheduleKick(context, melodyStartAt + beatIndex * 4 * subdivDur);
+  }
 
-    const noteStart = startAt + event.subdivisionOffset * subdivDur;
-    const fadeStart = noteStart + noteDurationSeconds;
-    const noteStop = fadeStart + FADE_OUT_MS / 1000;
+  for (let repeatIndex = 0; repeatIndex < sequenceRepeats; repeatIndex += 1) {
+    const repeatOffsetSubdivisions = repeatIndex * sequenceLengthSubdivisions;
+    buffers.forEach((buffer, index) => {
+      const event = rhythm.noteEvents[index];
+      const source = context.createBufferSource();
+      const gainNode = context.createGain();
+      source.buffer = buffer;
+      source.connect(gainNode);
+      gainNode.connect(context.destination);
 
-    gainNode.gain.setValueAtTime(1, noteStart);
-    gainNode.gain.setValueAtTime(1, fadeStart);
-    gainNode.gain.linearRampToValueAtTime(0.0001, noteStop);
+      const noteStart = melodyStartAt + (repeatOffsetSubdivisions + event.subdivisionOffset) * subdivDur;
+      const fadeStart = noteStart + noteDurationSeconds;
+      const noteStop = fadeStart + FADE_OUT_MS / 1000;
 
-    source.start(noteStart, 0);
-    source.stop(noteStop);
-  });
+      gainNode.gain.setValueAtTime(1, noteStart);
+      gainNode.gain.setValueAtTime(1, fadeStart);
+      gainNode.gain.linearRampToValueAtTime(0.0001, noteStop);
+
+      source.start(noteStart, 0);
+      source.stop(noteStop);
+    });
+  }
 };
 
 const formatPatternForDisplay = (grid, tripletStarts) =>
