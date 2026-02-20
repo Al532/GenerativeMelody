@@ -526,24 +526,30 @@ const scheduleHiHat = (context, whenSeconds) => {
   const oscillator = context.createOscillator();
   const gainNode = context.createGain();
   const highPass = context.createBiquadFilter();
+  const lowPass = context.createBiquadFilter();
 
   oscillator.type = "square";
-  oscillator.frequency.setValueAtTime(7800, whenSeconds);
+  oscillator.frequency.setValueAtTime(4300, whenSeconds);
 
   highPass.type = "highpass";
-  highPass.frequency.setValueAtTime(6500, whenSeconds);
-  highPass.Q.setValueAtTime(0.8, whenSeconds);
+  highPass.frequency.setValueAtTime(2200, whenSeconds);
+  highPass.Q.setValueAtTime(1.2, whenSeconds);
+
+  lowPass.type = "lowpass";
+  lowPass.frequency.setValueAtTime(5600, whenSeconds);
+  lowPass.Q.setValueAtTime(0.7, whenSeconds);
 
   gainNode.gain.setValueAtTime(0.0001, whenSeconds);
-  gainNode.gain.exponentialRampToValueAtTime(0.22, whenSeconds + 0.002);
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.055);
+  gainNode.gain.exponentialRampToValueAtTime(0.34, whenSeconds + 0.002);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.085);
 
   oscillator.connect(highPass);
-  highPass.connect(gainNode);
+  highPass.connect(lowPass);
+  lowPass.connect(gainNode);
   gainNode.connect(context.destination);
 
   oscillator.start(whenSeconds);
-  oscillator.stop(whenSeconds + 0.06);
+  oscillator.stop(whenSeconds + 0.09);
 };
 
 const playSequence = async (instrument, midiSequence, rhythm) => {
