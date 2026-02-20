@@ -1,7 +1,6 @@
 import { instruments, instrumentRanges } from "./assets.js";
 
 const STORAGE_KEY = "melody-prototype-settings-v1";
-const NOTE_DURATION_MS = 250;
 const FADE_OUT_MS = 50;
 const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
 const MAX_B_TO_A_LEAP_SEMITONES = 2;
@@ -9,13 +8,29 @@ const MAX_E_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
 const MAX_FINAL_B_PREVIOUS_LEAP_SEMITONES = 2;
 const REPETITION_PROBABILITY_FACTOR = 0.25;
+
+const RHYTHM_LEVEL = 4;
+const RHYTHM_GRID_SIZE = 16;
+const FIRST_HIT_INDICES = [1, 2, 3];
+const JUMP_VALUES = [1, 2, 3, 4, 5];
+const TRIPLET_BEAT_START_INDICES = [4, 8, 12];
+const AFTER_TRIPLET_VALUES = [0, 1, 2, 3];
+
+const RHYTHM_ENDPOINTS = {
+  bpm: [60, 120],
+  firstHitWeights: [[0, 10, 0], [10, 5, 10]],
+  jumpWeights: [[0, 10, 0, 10, 0], [1, 5, 10, 2, 4]],
+  tripletChance: [[0, 0, 0], [0.3, 0.3, 0.3]],
+  afterTriplet2Weights: [[10, 0, 0, 0], [10, 0, 0, 0]],
+  afterTriplet3Weights: [[10, 0, 0, 0], [10, 0, 0, 0]],
+};
+
 const DEFAULT_SETTINGS = {
   primaryTones: "e, g, b",
   secondaryTones: "f#, a, c, d",
   forbiddenTones: "g#, c#",
   ambitusMin: "50",
   ambitusMax: "72",
-  noteCount: "6",
   instrument: "Piano",
 };
 
@@ -24,12 +39,12 @@ const secondaryTonesInput = document.querySelector("#secondary-tones");
 const forbiddenTonesInput = document.querySelector("#forbidden-tones");
 const ambitusMinInput = document.querySelector("#ambitus-min");
 const ambitusMaxInput = document.querySelector("#ambitus-max");
-const noteCountInput = document.querySelector("#note-count");
 const instrumentSelect = document.querySelector("#instrument-select");
 const generateButton = document.querySelector("#generate-btn");
 const replayButton = document.querySelector("#replay-btn");
 const statusLabel = document.querySelector("#status");
 const resultInstrument = document.querySelector("#result-instrument");
+const resultPattern = document.querySelector("#result-pattern");
 const resultSequence = document.querySelector("#result-sequence");
 
 const sampleCache = new Map();
@@ -59,6 +74,26 @@ const TONE_TO_PITCH_CLASS = {
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const lerp = (start, end, factor) => start + (end - start) * factor;
+
+const weightedChoice = (values, weights) => {
+  const valid = values.map((value, index) => ({ value, weight: Math.max(0, Number(weights[index] ?? 0)) }));
+  const total = valid.reduce((sum, entry) => sum + entry.weight, 0);
+
+  if (total <= 0) {
+    return values[Math.floor(Math.random() * values.length)];
+  }
+
+  let cursor = Math.random() * total;
+  for (const entry of valid) {
+    cursor -= entry.weight;
+    if (cursor <= 0) {
+      return entry.value;
+    }
+  }
+
+  return valid[valid.length - 1].value;
+};
 
 const shuffled = (values) => {
   const copy = [...values];
@@ -114,7 +149,6 @@ const persistSettings = () => {
     forbiddenTones: forbiddenTonesInput.value,
     ambitusMin: ambitusMinInput.value,
     ambitusMax: ambitusMaxInput.value,
-    noteCount: noteCountInput.value,
     instrument: instrumentSelect.value,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -128,7 +162,6 @@ const restoreSettings = () => {
     forbiddenTonesInput.value = DEFAULT_SETTINGS.forbiddenTones;
     ambitusMinInput.value = DEFAULT_SETTINGS.ambitusMin;
     ambitusMaxInput.value = DEFAULT_SETTINGS.ambitusMax;
-    noteCountInput.value = DEFAULT_SETTINGS.noteCount;
     instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     return;
   }
@@ -140,7 +173,6 @@ const restoreSettings = () => {
     forbiddenTonesInput.value = data.forbiddenTones ?? DEFAULT_SETTINGS.forbiddenTones;
     ambitusMinInput.value = data.ambitusMin ?? DEFAULT_SETTINGS.ambitusMin;
     ambitusMaxInput.value = data.ambitusMax ?? DEFAULT_SETTINGS.ambitusMax;
-    noteCountInput.value = data.noteCount ?? DEFAULT_SETTINGS.noteCount;
     if (data.instrument && instruments.includes(data.instrument)) {
       instrumentSelect.value = data.instrument;
     } else {
@@ -219,20 +251,117 @@ const createToneGroups = () => {
 const parseInputs = () => {
   const minInput = Number.parseInt(ambitusMinInput.value, 10);
   const maxInput = Number.parseInt(ambitusMaxInput.value, 10);
-  const countInput = Number.parseInt(noteCountInput.value, 10);
 
   const sanitizedMin = Number.isNaN(minInput) ? 0 : clamp(minInput, 0, 127);
   const sanitizedMax = Number.isNaN(maxInput) ? 127 : clamp(maxInput, 0, 127);
 
   const minMidi = Math.min(sanitizedMin, sanitizedMax);
   const maxMidi = Math.max(sanitizedMin, sanitizedMax);
-  const noteCount = Number.isNaN(countInput) ? 8 : clamp(countInput, 1, 128);
 
   ambitusMinInput.value = String(minMidi);
   ambitusMaxInput.value = String(maxMidi);
-  noteCountInput.value = String(noteCount);
 
-  return { minMidi, maxMidi, noteCount };
+  return { minMidi, maxMidi };
+};
+
+const getRhythmParamsForLevel = (level) => {
+  const clampedLevel = clamp(level, 1, 10);
+  const factor = (clampedLevel - 1) / 9;
+
+  const firstHitWeights = RHYTHM_ENDPOINTS.firstHitWeights[0].map((start, index) =>
+    lerp(start, RHYTHM_ENDPOINTS.firstHitWeights[1][index], factor)
+  );
+  const jumpWeights = RHYTHM_ENDPOINTS.jumpWeights[0].map((start, index) =>
+    lerp(start, RHYTHM_ENDPOINTS.jumpWeights[1][index], factor)
+  );
+  const tripletChance = RHYTHM_ENDPOINTS.tripletChance[0].map((start, index) =>
+    lerp(start, RHYTHM_ENDPOINTS.tripletChance[1][index], factor)
+  );
+  const afterTriplet2Weights = RHYTHM_ENDPOINTS.afterTriplet2Weights[0].map((start, index) =>
+    lerp(start, RHYTHM_ENDPOINTS.afterTriplet2Weights[1][index], factor)
+  );
+  const afterTriplet3Weights = RHYTHM_ENDPOINTS.afterTriplet3Weights[0].map((start, index) =>
+    lerp(start, RHYTHM_ENDPOINTS.afterTriplet3Weights[1][index], factor)
+  );
+  afterTriplet3Weights[3] = 0;
+
+  return {
+    bpm: Math.round(lerp(RHYTHM_ENDPOINTS.bpm[0], RHYTHM_ENDPOINTS.bpm[1], factor)),
+    firstHitWeights,
+    jumpWeights,
+    tripletChance,
+    afterTriplet2Weights,
+    afterTriplet3Weights,
+  };
+};
+
+const applyAfterTripletConstraint = (grid, beatStart, weights) => {
+  const nextBeatStart = beatStart + 4;
+  if (nextBeatStart > 12) {
+    return;
+  }
+
+  for (let idx = nextBeatStart; idx < nextBeatStart + 4; idx += 1) {
+    grid[idx] = 0;
+  }
+
+  const chosenOffset = weightedChoice(AFTER_TRIPLET_VALUES, weights);
+  grid[nextBeatStart + chosenOffset] = 1;
+};
+
+const createRhythmPattern = (level) => {
+  const params = getRhythmParamsForLevel(level);
+  const grid = Array(RHYTHM_GRID_SIZE).fill(0);
+  const tripletStarts = new Set();
+
+  let position = weightedChoice(FIRST_HIT_INDICES, params.firstHitWeights);
+  while (position < 15) {
+    grid[position] = 1;
+    const jump = weightedChoice(JUMP_VALUES, params.jumpWeights);
+    position += jump;
+  }
+
+  grid[15] = 0;
+
+  TRIPLET_BEAT_START_INDICES.forEach((beatStart, index) => {
+    if (grid[beatStart] !== 1) {
+      return;
+    }
+
+    if (Math.random() > params.tripletChance[index]) {
+      return;
+    }
+
+    for (let idx = beatStart; idx < beatStart + 4; idx += 1) {
+      grid[idx] = 0;
+    }
+    grid[beatStart] = 1;
+    tripletStarts.add(beatStart);
+
+    if (beatStart === 4) {
+      applyAfterTripletConstraint(grid, beatStart, params.afterTriplet2Weights);
+    }
+
+    if (beatStart === 8) {
+      applyAfterTripletConstraint(grid, beatStart, params.afterTriplet3Weights);
+    }
+  });
+
+  const noteEvents = [];
+  for (let idx = 0; idx < RHYTHM_GRID_SIZE; idx += 1) {
+    if (tripletStarts.has(idx)) {
+      noteEvents.push({ subdivisionOffset: idx, kind: "triplet" });
+      noteEvents.push({ subdivisionOffset: idx + 4 / 3, kind: "triplet" });
+      noteEvents.push({ subdivisionOffset: idx + 8 / 3, kind: "triplet" });
+      continue;
+    }
+
+    if (grid[idx] === 1) {
+      noteEvents.push({ subdivisionOffset: idx, kind: "hit" });
+    }
+  }
+
+  return { grid, tripletStarts, noteEvents, bpm: params.bpm };
 };
 
 const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
@@ -250,16 +379,6 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
     return "E";
   };
 
-  // Règles de génération:
-  // - A = primary notes, B = secondary notes, C = forbidden notes, E = toutes les autres notes.
-  // - Après A, la note suivante peut être A, B ou E.
-  // - Après B, la note suivante doit être A avec un mouvement conjoint (2 demi-tons max),
-  //   sauf répétition exacte d'une note B (interdite sur la dernière note).
-  // - Après E, la note suivante doit être A ou B avec un mouvement conjoint serré (1 demi-ton max).
-  // - La dernière note doit être A, ou B si la précédente est conjointe (<= 2 demi-tons).
-  // - Intervalle max entre deux notes consécutives: 12 demi-tons.
-  // - Écart max global entre la note la plus grave et la plus aiguë de la séquence: 14 demi-tons.
-  // - Après un demi-ton, interdire un mouvement inverse de 1 ton ou moins.
   const isTransitionAllowed = (
     prevPrevMidi,
     prevMidi,
@@ -408,26 +527,46 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
 
 let lastGeneratedSequence = null;
 
-const playSequence = async (instrument, midiSequence) => {
+const scheduleKick = (context, whenSeconds) => {
+  const oscillator = context.createOscillator();
+  const gainNode = context.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(140, whenSeconds);
+  oscillator.frequency.exponentialRampToValueAtTime(42, whenSeconds + 0.12);
+
+  gainNode.gain.setValueAtTime(0.0001, whenSeconds);
+  gainNode.gain.exponentialRampToValueAtTime(0.8, whenSeconds + 0.005);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.14);
+
+  oscillator.connect(gainNode);
+  gainNode.connect(context.destination);
+  oscillator.start(whenSeconds);
+  oscillator.stop(whenSeconds + 0.16);
+};
+
+const playSequence = async (instrument, midiSequence, rhythm) => {
   const context = await ensureAudioContext();
+  const buffers = await Promise.all(midiSequence.map((midi) => loadSampleBuffer(instrument, midi, context)));
 
-  const firstBuffer = await loadSampleBuffer(instrument, midiSequence[0], context);
-  const otherBuffers = await Promise.all(
-    midiSequence.slice(1).map((midi) => loadSampleBuffer(instrument, midi, context))
-  );
-  const buffers = [firstBuffer, ...otherBuffers];
-
+  const subdivDur = (60 / rhythm.bpm) / 4;
+  const noteDurationSeconds = Math.max(0.11, subdivDur * 0.9);
   const startAt = context.currentTime + 0.03;
 
+  for (let beatIndex = 0; beatIndex < 4; beatIndex += 1) {
+    scheduleKick(context, startAt + beatIndex * 4 * subdivDur);
+  }
+
   buffers.forEach((buffer, index) => {
+    const event = rhythm.noteEvents[index];
     const source = context.createBufferSource();
     const gainNode = context.createGain();
     source.buffer = buffer;
     source.connect(gainNode);
     gainNode.connect(context.destination);
 
-    const noteStart = startAt + (index * NOTE_DURATION_MS) / 1000;
-    const fadeStart = noteStart + NOTE_DURATION_MS / 1000;
+    const noteStart = startAt + event.subdivisionOffset * subdivDur;
+    const fadeStart = noteStart + noteDurationSeconds;
     const noteStop = fadeStart + FADE_OUT_MS / 1000;
 
     gainNode.gain.setValueAtTime(1, noteStart);
@@ -439,13 +578,23 @@ const playSequence = async (instrument, midiSequence) => {
   });
 };
 
+const formatPatternForDisplay = (grid, tripletStarts) =>
+  grid
+    .map((hit, index) => {
+      if (tripletStarts.has(index)) {
+        return "T";
+      }
+      return hit === 1 ? "1" : "0";
+    })
+    .join(" ");
+
 const handleGenerate = async () => {
   generateButton.disabled = true;
   setStatus("Génération…");
 
   try {
     const instrument = instrumentSelect.value;
-    const { minMidi, maxMidi, noteCount } = parseInputs();
+    const { minMidi, maxMidi } = parseInputs();
     const toneGroups = createToneGroups();
     const range = instrumentRanges[instrument];
 
@@ -458,19 +607,22 @@ const handleGenerate = async () => {
       );
     }
 
+    const rhythm = createRhythmPattern(RHYTHM_LEVEL);
+    const noteCount = rhythm.noteEvents.length;
     const midiSequence = buildMelody(playableMin, playableMax, noteCount, toneGroups);
     const labels = midiSequence.map(midiToLabel);
 
     resultInstrument.textContent = instrument;
+    resultPattern.textContent = formatPatternForDisplay(rhythm.grid, rhythm.tripletStarts);
     resultSequence.textContent = labels.join(", ");
 
     persistSettings();
-    await playSequence(instrument, midiSequence);
+    await playSequence(instrument, midiSequence, rhythm);
 
-    lastGeneratedSequence = { instrument, midiSequence };
+    lastGeneratedSequence = { instrument, midiSequence, rhythm };
     replayButton.disabled = false;
 
-    setStatus(`Séquence générée selon les contraintes (${noteCount} notes).`);
+    setStatus(`Séquence générée (${noteCount} notes / hits, ${rhythm.bpm} BPM).`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue.";
     setStatus(message, true);
@@ -478,7 +630,6 @@ const handleGenerate = async () => {
     generateButton.disabled = false;
   }
 };
-
 
 const handleReplay = async () => {
   if (!lastGeneratedSequence) {
@@ -491,7 +642,11 @@ const handleReplay = async () => {
   setStatus("Replay de la dernière séquence…");
 
   try {
-    await playSequence(lastGeneratedSequence.instrument, lastGeneratedSequence.midiSequence);
+    await playSequence(
+      lastGeneratedSequence.instrument,
+      lastGeneratedSequence.midiSequence,
+      lastGeneratedSequence.rhythm
+    );
     setStatus("Dernière séquence rejouée.");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue.";
@@ -512,7 +667,6 @@ persistSettings();
   forbiddenTonesInput,
   ambitusMinInput,
   ambitusMaxInput,
-  noteCountInput,
   instrumentSelect,
 ].forEach((element) => {
   element.addEventListener("input", persistSettings);

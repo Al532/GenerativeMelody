@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=9">
+  <link rel="stylesheet" href="styles.css?v=10">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <p class="site-version">Version du site&nbsp;: v9</p>
+  <p class="site-version">Version du site&nbsp;: v10</p>
   <header class="hero">
     <div>
       <p class="eyebrow">Prototype</p>
@@ -48,11 +48,6 @@
           <input id="ambitus-max" type="number" min="0" max="127" step="1" value="72">
         </label>
 
-        <label class="field" for="note-count">
-          <span>Nombre de notes</span>
-          <input id="note-count" type="number" min="1" max="128" step="1" value="6">
-        </label>
-
         <label class="field" for="instrument-select">
           <span>Instrument</span>
           <select id="instrument-select"></select>
@@ -70,14 +65,15 @@
     <section class="panel">
       <h2>Résultat</h2>
       <p><strong>Instrument:</strong> <span id="result-instrument">—</span></p>
+      <p><strong>Pattern (16):</strong> <span id="result-pattern">—</span></p>
       <p><strong>Série:</strong> <span id="result-sequence">—</span></p>
     </section>
   </main>
 
   <footer>
-    <p>Version prototype v9: génération déterministe avec contraintes A/B/C/E.</p>
+    <p>Version prototype v10: mélodie contrainte + pattern rythmique 4 temps.</p>
   </footer>
 
-  <script type="module" src="main.js?v=9"></script>
+  <script type="module" src="main.js?v=10"></script>
 </body>
 </html>
