@@ -123,15 +123,15 @@ const playSequence = async (instrument, midiSequence) => {
     gainNode.connect(context.destination);
 
     const noteStart = startAt + (index * NOTE_DURATION_MS) / 1000;
-    const noteEnd = noteStart + NOTE_DURATION_MS / 1000;
-    const fadeStart = noteEnd - FADE_OUT_MS / 1000;
+    const fadeStart = noteStart + NOTE_DURATION_MS / 1000;
+    const noteStop = fadeStart + FADE_OUT_MS / 1000;
 
     gainNode.gain.setValueAtTime(1, noteStart);
     gainNode.gain.setValueAtTime(1, fadeStart);
-    gainNode.gain.linearRampToValueAtTime(0.0001, noteEnd);
+    gainNode.gain.linearRampToValueAtTime(0.0001, noteStop);
 
     source.start(noteStart, 0);
-    source.stop(noteEnd);
+    source.stop(noteStop);
   });
 };
 
