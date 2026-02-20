@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ear Training Template</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Template</p>
+      <h1>Ear Training Starter</h1>
+      <p class="lead">
+        This repository is intentionally minimal. Use the assets below to build your own ear training
+        workflow, UI, and scoring logic.
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>What remains</h2>
+      <p>
+        All interactive logic has been removed. Only static assets and sample data remain so you can
+        fork this project and focus on your own training experience.
+      </p>
+    </section>
+
+    <section class="panel">
+      <h2>Available assets</h2>
+      <div class="asset-grid">
+        <article class="asset-card">
+          <h3>Pitch samples</h3>
+          <p>
+            Use the MP3 samples for note recognition drills and interval playback. Play a random
+            instrument sample to preview the library, or trigger the feedback cue.
+          </p>
+          <div class="controls">
+            <button class="primary" type="button" id="play-random">Play random sample</button>
+          </div>
+          <dl class="sample-meta">
+            <div>
+              <dt>Chroma</dt>
+              <dd id="sample-chroma">—</dd>
+            </div>
+            <div>
+              <dt>Midi note</dt>
+              <dd id="sample-midi">—</dd>
+            </div>
+            <div>
+              <dt>Instrument</dt>
+              <dd id="sample-instrument">—</dd>
+            </div>
+          </dl>
+        </article>
+        <article class="asset-card">
+          <h3>Feedback audio</h3>
+          <p>Short confirmation cue.</p>
+          <div class="controls">
+            <button class="primary" type="button" id="play-feedback">Play feedback sample</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+      
+
+  </main>
+
+  <footer>
+    <p>Ready to build your own ear training experience.</p>
+  </footer>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
