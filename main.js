@@ -7,6 +7,8 @@ const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
 const MAX_B_TO_A_LEAP_SEMITONES = 2;
 const MAX_E_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
+const MAX_FINAL_B_PREVIOUS_LEAP_SEMITONES = 2;
+const REPETITION_PROBABILITY_FACTOR = 0.25;
 
 const primaryTonesInput = document.querySelector("#primary-tones");
 const secondaryTonesInput = document.querySelector("#secondary-tones");
@@ -56,6 +58,20 @@ const shuffled = (values) => {
     [copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]];
   }
   return copy;
+};
+
+const shuffledWithRepeatPenalty = (values, previousMidi) => {
+  if (previousMidi === null) {
+    return shuffled(values);
+  }
+
+  return [...values]
+    .map((value) => {
+      const penalty = value.midi === previousMidi ? REPETITION_PROBABILITY_FACTOR : 1;
+      return { value, score: Math.random() / penalty };
+    })
+    .sort((left, right) => left.score - right.score)
+    .map(({ value }) => value);
 };
 
 const midiToLabel = (midi) => {
@@ -222,13 +238,31 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
   // - Après B, la note suivante doit être A avec un mouvement conjoint (2 demi-tons max),
   //   sauf répétition exacte d'une note B.
   // - Après E, la note suivante doit être A ou B avec un mouvement conjoint serré (1 demi-ton max).
-  // - La dernière note doit être A ou B.
+  // - La dernière note doit être A, ou B si la précédente est conjointe (<= 2 demi-tons).
   // - Intervalle max entre deux notes consécutives: 12 demi-tons.
   // - Écart max global entre la note la plus grave et la plus aiguë de la séquence: 14 demi-tons.
-  const isTransitionAllowed = (prevMidi, prevCategory, currentMidi, currentCategory) => {
+  // - Après un demi-ton, interdire un mouvement inverse de 1 ton ou moins.
+  const isTransitionAllowed = (
+    prevPrevMidi,
+    prevMidi,
+    prevCategory,
+    currentMidi,
+    currentCategory
+  ) => {
     const leap = Math.abs(currentMidi - prevMidi);
     if (leap > MAX_CONSECUTIVE_LEAP_SEMITONES) {
       return false;
+    }
+
+    if (prevPrevMidi !== null) {
+      const previousDirection = prevMidi - prevPrevMidi;
+      const currentDirection = currentMidi - prevMidi;
+      const hasSemitoneMove = Math.abs(previousDirection) === 1;
+      const reversedDirection = previousDirection * currentDirection < 0;
+      const reverseStepOrTone = Math.abs(currentDirection) <= 2;
+      if (hasSemitoneMove && reversedDirection && reverseStepOrTone) {
+        return false;
+      }
     }
 
     if (prevCategory === "A") {
@@ -270,9 +304,20 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
   const search = (index) => {
     if (index === noteCount) {
       const finalCategory = categories[categories.length - 1];
-      return finalCategory === "A" || finalCategory === "B";
+      if (finalCategory === "A") {
+        return true;
+      }
+      if (finalCategory !== "B") {
+        return false;
+      }
+      if (sequence.length < 2) {
+        return false;
+      }
+      const finalLeap = Math.abs(sequence[sequence.length - 1] - sequence[sequence.length - 2]);
+      return finalLeap <= MAX_FINAL_B_PREVIOUS_LEAP_SEMITONES;
     }
 
+    const prevPrevMidi = index > 1 ? sequence[index - 2] : null;
     const prevMidi = index > 0 ? sequence[index - 1] : null;
     const prevCategory = index > 0 ? categories[index - 1] : null;
 
@@ -281,7 +326,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
       return false;
     }
 
-    for (const candidate of shuffled(playable)) {
+    for (const candidate of shuffledWithRepeatPenalty(playable, prevMidi)) {
       const { midi, category } = candidate;
 
       if (index === 0 && category !== "A" && category !== "B") {
@@ -292,7 +337,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
         continue;
       }
 
-      if (index > 0 && !isTransitionAllowed(prevMidi, prevCategory, midi, category)) {
+      if (index > 0 && !isTransitionAllowed(prevPrevMidi, prevMidi, prevCategory, midi, category)) {
         continue;
       }
 
@@ -335,11 +380,14 @@ let lastGeneratedSequence = null;
 
 const playSequence = async (instrument, midiSequence) => {
   const context = await ensureAudioContext();
-  const startAt = context.currentTime + 0.03;
 
-  const buffers = await Promise.all(
-    midiSequence.map((midi) => loadSampleBuffer(instrument, midi, context))
+  const firstBuffer = await loadSampleBuffer(instrument, midiSequence[0], context);
+  const otherBuffers = await Promise.all(
+    midiSequence.slice(1).map((midi) => loadSampleBuffer(instrument, midi, context))
   );
+  const buffers = [firstBuffer, ...otherBuffers];
+
+  const startAt = context.currentTime + 0.03;
 
   buffers.forEach((buffer, index) => {
     const source = context.createBufferSource();
