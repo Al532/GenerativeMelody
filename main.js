@@ -6,6 +6,7 @@ const FADE_OUT_MS = 50;
 
 const primaryTonesInput = document.querySelector("#primary-tones");
 const secondaryTonesInput = document.querySelector("#secondary-tones");
+const forbiddenTonesInput = document.querySelector("#forbidden-tones");
 const ambitusMinInput = document.querySelector("#ambitus-min");
 const ambitusMaxInput = document.querySelector("#ambitus-max");
 const noteCountInput = document.querySelector("#note-count");
@@ -49,6 +50,7 @@ const persistSettings = () => {
   const data = {
     primaryTones: primaryTonesInput.value,
     secondaryTones: secondaryTonesInput.value,
+    forbiddenTones: forbiddenTonesInput.value,
     ambitusMin: ambitusMinInput.value,
     ambitusMax: ambitusMaxInput.value,
     noteCount: noteCountInput.value,
@@ -67,6 +69,7 @@ const restoreSettings = () => {
     const data = JSON.parse(raw);
     primaryTonesInput.value = data.primaryTones ?? "";
     secondaryTonesInput.value = data.secondaryTones ?? "";
+    forbiddenTonesInput.value = data.forbiddenTones ?? "";
     ambitusMinInput.value = data.ambitusMin ?? ambitusMinInput.value;
     ambitusMaxInput.value = data.ambitusMax ?? ambitusMaxInput.value;
     noteCountInput.value = data.noteCount ?? noteCountInput.value;
@@ -199,6 +202,7 @@ persistSettings();
 [
   primaryTonesInput,
   secondaryTonesInput,
+  forbiddenTonesInput,
   ambitusMinInput,
   ambitusMaxInput,
   noteCountInput,
