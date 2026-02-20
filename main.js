@@ -254,7 +254,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
   // - A = primary notes, B = secondary notes, C = forbidden notes, E = toutes les autres notes.
   // - Après A, la note suivante peut être A, B ou E.
   // - Après B, la note suivante doit être A avec un mouvement conjoint (2 demi-tons max),
-  //   sauf répétition exacte d'une note B.
+  //   sauf répétition exacte d'une note B (interdite sur la dernière note).
   // - Après E, la note suivante doit être A ou B avec un mouvement conjoint serré (1 demi-ton max).
   // - La dernière note doit être A, ou B si la précédente est conjointe (<= 2 demi-tons).
   // - Intervalle max entre deux notes consécutives: 12 demi-tons.
@@ -332,6 +332,9 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
         return false;
       }
       const finalLeap = Math.abs(sequence[sequence.length - 1] - sequence[sequence.length - 2]);
+      if (finalLeap === 0) {
+        return false;
+      }
       return finalLeap <= MAX_FINAL_B_PREVIOUS_LEAP_SEMITONES;
     }
 
@@ -352,6 +355,15 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
       }
 
       if (index === noteCount - 1 && category !== "A" && category !== "B") {
+        continue;
+      }
+
+      if (
+        index === noteCount - 1
+        && prevCategory === "B"
+        && category === "B"
+        && prevMidi === midi
+      ) {
         continue;
       }
 
