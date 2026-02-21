@@ -745,6 +745,46 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
 
 let lastGeneratedSequence = null;
 
+const scheduleDrumsWithTone = (startAt, rhythm, totalSubdivisions) => {
+  const subdivDur = (60 / rhythm.bpm) / 4;
+  const hiHat = new Tone.NoiseSynth({
+    noise: { type: "white" },
+    envelope: {
+      attack: 0.001,
+      decay: 0.05,
+      sustain: 0,
+      release: 0.02,
+    },
+  }).toDestination();
+  const hiHatFilter = new Tone.Filter(9800, "bandpass").toDestination();
+  hiHat.disconnect();
+  hiHat.connect(hiHatFilter);
+
+  const kick = new Tone.MembraneSynth({
+    pitchDecay: 0.045,
+    octaves: 4,
+    oscillator: { type: "sine" },
+    envelope: {
+      attack: 0.001,
+      decay: 0.22,
+      sustain: 0,
+      release: 0.02,
+    },
+  }).toDestination();
+
+  for (let hitIndex = 0; hitIndex < 4; hitIndex += 1) {
+    const hiHatStart = startAt + hitIndex * 2 * subdivDur;
+    hiHat.triggerAttackRelease("32n", hiHatStart, 0.32);
+  }
+
+  const totalBeats = totalSubdivisions / 4;
+  for (let beatIndex = 0; beatIndex < totalBeats; beatIndex += 1) {
+    kick.triggerAttackRelease("C1", "8n", startAt + beatIndex * 4 * subdivDur, 0.85);
+  }
+
+  return { hiHat, hiHatFilter, kick };
+};
+
 const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments) => {
   const subdivDur = (60 / rhythm.bpm) / 4;
   return midiSequence.map((midi, index) => {
@@ -806,6 +846,12 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
 const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
   await Tone.start();
   const startAt = Tone.now() + 0.05;
+  const introSubdivisions = 8;
+  const sequenceRepeats = 2;
+  const sequenceLengthSubdivisions = RHYTHM_GRID_SIZE;
+  const totalSequenceSubdivisions = sequenceLengthSubdivisions * sequenceRepeats;
+  const melodyStartAt = startAt + introSubdivisions * (60 / rhythm.bpm) / 4;
+
   const synth = new Tone.MonoSynth({
     oscillator: { type: "sawtooth" },
     filter: {
@@ -826,12 +872,28 @@ const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
   }).toDestination();
 
   const timeline = createPlayableTimeline(midiSequence, rhythm, activeOrnaments);
-  timeline.forEach((item) => {
-    scheduleToneNote(synth, { ...item, start: startAt + item.start }, activeOrnaments);
-  });
+  const drumNodes = scheduleDrumsWithTone(startAt, rhythm, totalSequenceSubdivisions);
+  for (let repeatIndex = 0; repeatIndex < sequenceRepeats; repeatIndex += 1) {
+    const repeatOffset = (repeatIndex * sequenceLengthSubdivisions * 60) / (rhythm.bpm * 4);
+    timeline.forEach((item) => {
+      scheduleToneNote(
+        synth,
+        { ...item, start: melodyStartAt + repeatOffset + item.start },
+        activeOrnaments
+      );
+    });
+  }
 
-  const totalDuration = Math.max(...timeline.map((item) => item.start + item.duration), 0) + 0.2;
-  window.setTimeout(() => synth.dispose(), totalDuration * 1000);
+  const totalDuration =
+    introSubdivisions * (60 / rhythm.bpm) / 4 +
+    totalSequenceSubdivisions * (60 / rhythm.bpm) / 4 +
+    0.3;
+  window.setTimeout(() => {
+    synth.dispose();
+    drumNodes.hiHat.dispose();
+    drumNodes.hiHatFilter.dispose();
+    drumNodes.kick.dispose();
+  }, totalDuration * 1000);
 };
 
 const handleExportPresetValues = () => {
