@@ -287,6 +287,18 @@ const sanitizeRhythmSettings = (source) => ({
   ),
 });
 
+const sanitizeRhythmPreset = (source) => ({
+  jumpOddWeights: sanitizeWeightArray(source?.jumpOddWeights, 5),
+  jumpEvenWeights: sanitizeWeightArray(source?.jumpEvenWeights, 5),
+  tripletChance: sanitizeWeightArray(source?.tripletChance, 3),
+  afterTripletWeights: sanitizeWeightArray(source?.afterTripletWeights ?? source?.afterTriplet2Weights, 4),
+  repetitionProbabilityFactor: clamp(
+    Number(source?.repetitionProbabilityFactor ?? DEFAULT_REPETITION_PROBABILITY_FACTOR),
+    0,
+    1
+  ),
+});
+
 const applyRhythmSettingsToSliders = () => {
   bpmSlider.value = String(rhythmSettings.bpm);
   bpmValue.textContent = String(rhythmSettings.bpm);
@@ -847,7 +859,7 @@ const handleSavePreset = () => {
 
   syncRhythmSettingsFromSliders();
   const presets = getRhythmPresets();
-  presets[name] = sanitizeRhythmSettings(rhythmSettings);
+  presets[name] = sanitizeRhythmPreset(rhythmSettings);
   saveRhythmPresets(presets);
   refreshPresetSelect();
   presetSelect.value = name;
@@ -869,7 +881,10 @@ const handleLoadPreset = () => {
     return;
   }
 
-  rhythmSettings = sanitizeRhythmSettings(selected);
+  rhythmSettings = {
+    ...rhythmSettings,
+    ...sanitizeRhythmPreset(selected),
+  };
   applyRhythmSettingsToSliders();
   presetNameInput.value = name;
   persistSettings();
