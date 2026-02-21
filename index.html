@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=18">
+  <link rel="stylesheet" href="styles.css?v=19">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <p class="site-version">Version du site&nbsp;: v19</p>
+  <p class="site-version">Version du site&nbsp;: v20</p>
   <header class="hero">
     <div>
       <p class="eyebrow">Prototype</p>
@@ -62,6 +62,13 @@
           <span class="slider-value" id="bpm-value">92</span>
         </div>
       </label>
+      <label class="slider-row" for="repetition-penalty-slider">
+        <span class="slider-label">Pénalité notes répétées</span>
+        <div class="slider-input-wrap">
+          <input id="repetition-penalty-slider" type="range" min="0" max="1" step="0.01" value="0.25">
+          <span class="slider-value" id="repetition-penalty-value">0.25</span>
+        </div>
+      </label>
       <div class="rhythm-grid" id="jump-sliders"></div>
 
       <h3>Triolets</h3>
@@ -95,9 +102,9 @@
   </main>
 
   <footer>
-    <p>Version prototype v18: jumps pair/impair + triplets + presets + affichage symbolique.</p>
+    <p>Version prototype v20: jumps pair/impair + triplets + presets + affichage symbolique.</p>
   </footer>
 
-  <script type="module" src="main.js?v=18"></script>
+  <script type="module" src="main.js?v=19"></script>
 </body>
 </html>

@@ -7,7 +7,7 @@ const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
 const MAX_B_TO_A_LEAP_SEMITONES = 2;
 const MAX_E_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
-const REPETITION_PROBABILITY_FACTOR = 0.25;
+const DEFAULT_REPETITION_PROBABILITY_FACTOR = 0.25;
 
 const RHYTHM_GRID_SIZE = 16;
 const JUMP_VALUES = [1, 2, 3, 4, 5];
@@ -20,6 +20,7 @@ const DEFAULT_RHYTHM_SETTINGS = {
   jumpEvenWeights: [2, 4, 7, 5, 2],
   tripletChance: [3, 3, 3],
   afterTripletWeights: [10, 0, 0, 0],
+  repetitionProbabilityFactor: DEFAULT_REPETITION_PROBABILITY_FACTOR,
 };
 
 const DEFAULT_SETTINGS = {
@@ -39,6 +40,8 @@ const ambitusMaxInput = document.querySelector("#ambitus-max");
 const instrumentSelect = document.querySelector("#instrument-select");
 const bpmSlider = document.querySelector("#bpm-slider");
 const bpmValue = document.querySelector("#bpm-value");
+const repetitionPenaltySlider = document.querySelector("#repetition-penalty-slider");
+const repetitionPenaltyValue = document.querySelector("#repetition-penalty-value");
 const jumpSlidersContainer = document.querySelector("#jump-sliders");
 const tripletSlidersContainer = document.querySelector("#triplet-sliders");
 const afterTripletSlidersContainer = document.querySelector("#after-triplet-sliders");
@@ -105,6 +108,9 @@ const AFTER_TRIPLET_KEYS = [
 const sliderBindings = new Map();
 let rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
 
+// IMPORTANT: toute nouvelle valeur ajoutée dans l’interface doit aussi être ajoutée
+// aux presets (sanitize/save/load) en conservant la compatibilité avec les presets existants.
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const lerp = (start, end, factor) => start + (end - start) * factor;
 
@@ -136,15 +142,16 @@ const shuffled = (values) => {
   return copy;
 };
 
-const shuffledWithRepeatPenalty = (values, previousMidi) => {
+const shuffledWithRepeatPenalty = (values, previousMidi, repetitionProbabilityFactor) => {
   if (previousMidi === null) {
     return shuffled(values);
   }
 
   return [...values]
     .map((value) => {
-      const penalty = value.midi === previousMidi ? REPETITION_PROBABILITY_FACTOR : 1;
-      return { value, score: Math.random() / penalty };
+      const penalty = value.midi === previousMidi ? repetitionProbabilityFactor : 1;
+      const score = penalty <= 0 ? Number.POSITIVE_INFINITY : Math.random() / penalty;
+      return { value, score };
     })
     .sort((left, right) => left.score - right.score)
     .map(({ value }) => value);
@@ -271,6 +278,11 @@ const sanitizeRhythmSettings = (source) => ({
   jumpEvenWeights: sanitizeWeightArray(source?.jumpEvenWeights, 5),
   tripletChance: sanitizeWeightArray(source?.tripletChance, 3),
   afterTripletWeights: sanitizeWeightArray(source?.afterTripletWeights ?? source?.afterTriplet2Weights, 4),
+  repetitionProbabilityFactor: clamp(
+    Number(source?.repetitionProbabilityFactor ?? DEFAULT_REPETITION_PROBABILITY_FACTOR),
+    0,
+    1
+  ),
 });
 
 const applyRhythmSettingsToSliders = () => {
@@ -297,6 +309,9 @@ const applyRhythmSettingsToSliders = () => {
     binding.input.value = String(rhythmSettings.afterTripletWeights[index]);
     binding.value.textContent = String(rhythmSettings.afterTripletWeights[index]);
   });
+
+  repetitionPenaltySlider.value = String(rhythmSettings.repetitionProbabilityFactor);
+  repetitionPenaltyValue.textContent = rhythmSettings.repetitionProbabilityFactor.toFixed(2);
 };
 
 const syncRhythmSettingsFromSliders = () => {
@@ -309,6 +324,7 @@ const syncRhythmSettingsFromSliders = () => {
   rhythmSettings.afterTripletWeights = AFTER_TRIPLET_KEYS.map(({ key }) =>
     Number(sliderBindings.get(`after-${key}`).input.value)
   );
+  rhythmSettings.repetitionProbabilityFactor = Number(repetitionPenaltySlider.value);
 };
 
 const setStatus = (message, isError = false) => {
@@ -549,7 +565,7 @@ const createRhythmPattern = (settings) => {
   return { grid, tripletStarts, noteEvents, bpm: params.bpm };
 };
 
-const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
+const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabilityFactor) => {
   const pitchClassCategory = (midi) => {
     const pitchClass = midi % 12;
     if (toneGroups.primary.has(pitchClass)) {
@@ -638,7 +654,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups) => {
       return false;
     }
 
-    for (const candidate of shuffledWithRepeatPenalty(playable, prevMidi)) {
+    for (const candidate of shuffledWithRepeatPenalty(playable, prevMidi, repetitionProbabilityFactor)) {
       const { midi, category } = candidate;
 
       if (index === 0 && category !== "A" && category !== "B") {
@@ -891,7 +907,13 @@ const handleGenerate = async () => {
     syncRhythmSettingsFromSliders();
     const rhythm = createRhythmPattern(rhythmSettings);
     const noteCount = rhythm.noteEvents.length;
-    const midiSequence = buildMelody(playableMin, playableMax, noteCount, toneGroups);
+    const midiSequence = buildMelody(
+      playableMin,
+      playableMax,
+      noteCount,
+      toneGroups,
+      rhythmSettings.repetitionProbabilityFactor
+    );
     const labels = midiSequence.map(midiToLabel);
 
     resultInstrument.textContent = instrument;
@@ -947,6 +969,12 @@ persistSettings();
 
 bpmSlider.addEventListener("input", () => {
   bpmValue.textContent = bpmSlider.value;
+  syncRhythmSettingsFromSliders();
+  persistSettings();
+});
+
+repetitionPenaltySlider.addEventListener("input", () => {
+  repetitionPenaltyValue.textContent = Number(repetitionPenaltySlider.value).toFixed(2);
   syncRhythmSettingsFromSliders();
   persistSettings();
 });
