@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=21">
+  <link rel="stylesheet" href="styles.css?v=23">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
@@ -85,6 +85,21 @@
         <button id="delete-preset-btn" type="button">Effacer</button>
       </div>
 
+      <div class="preset-transfer-row">
+        <button id="export-preset-values-btn" type="button">Exporter probas (.json)</button>
+        <button id="import-preset-values-btn" type="button">Importer probas</button>
+        <input id="import-preset-values-file" type="file" accept="application/json" hidden>
+      </div>
+
+      <h3>Ornements globaux</h3>
+      <div class="ornament-row">
+        <label><input id="ornament-long" type="checkbox"> Long</label>
+        <label><input id="ornament-vibrato" type="checkbox"> Vibrato</label>
+        <label><input id="ornament-bend" type="checkbox"> Bend</label>
+        <label><input id="ornament-fall" type="checkbox"> Fall</label>
+        <label><input id="ornament-portamento" type="checkbox"> Portamento</label>
+      </div>
+
       <div class="controls">
         <button class="primary" id="generate-btn" type="button">Générer</button>
         <button id="replay-btn" type="button" disabled>Replay</button>
@@ -102,9 +117,10 @@
   </main>
 
   <footer>
-    <p>Version prototype v22: jumps pair/impair + triplets + presets + affichage symbolique.</p>
+    <p>Version prototype v23: export/import probas + synthèse sawtooth + ornements globaux.</p>
   </footer>
 
-  <script type="module" src="main.js?v=21"></script>
+  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js?v=23"></script>
+  <script type="module" src="main.js?v=23"></script>
 </body>
 </html>
