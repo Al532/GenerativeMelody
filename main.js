@@ -55,6 +55,7 @@ const resultPattern = document.querySelector("#result-pattern");
 const resultSequence = document.querySelector("#result-sequence");
 
 const sampleCache = new Map();
+let hiHatNoiseBuffer = null;
 const NOTE_LABELS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const TONE_TO_PITCH_CLASS = {
   c: 0,
@@ -708,33 +709,41 @@ const scheduleKick = (context, whenSeconds) => {
 };
 
 const scheduleHiHat = (context, whenSeconds) => {
-  const oscillator = context.createOscillator();
-  const gainNode = context.createGain();
+  if (!hiHatNoiseBuffer) {
+    const bufferSize = Math.max(2048, context.sampleRate * 0.1);
+    hiHatNoiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
+    const channelData = hiHatNoiseBuffer.getChannelData(0);
+
+    for (let i = 0; i < channelData.length; i += 1) {
+      channelData[i] = Math.random() * 2 - 1;
+    }
+  }
+
+  const source = context.createBufferSource();
+  source.buffer = hiHatNoiseBuffer;
+
   const highPass = context.createBiquadFilter();
-  const lowPass = context.createBiquadFilter();
-
-  oscillator.type = "square";
-  oscillator.frequency.setValueAtTime(4300, whenSeconds);
-
   highPass.type = "highpass";
-  highPass.frequency.setValueAtTime(2200, whenSeconds);
-  highPass.Q.setValueAtTime(1.2, whenSeconds);
+  highPass.frequency.setValueAtTime(7000, whenSeconds);
+  highPass.Q.setValueAtTime(1.1, whenSeconds);
 
-  lowPass.type = "lowpass";
-  lowPass.frequency.setValueAtTime(5600, whenSeconds);
-  lowPass.Q.setValueAtTime(0.7, whenSeconds);
+  const bandPass = context.createBiquadFilter();
+  bandPass.type = "bandpass";
+  bandPass.frequency.setValueAtTime(9800, whenSeconds);
+  bandPass.Q.setValueAtTime(2.6, whenSeconds);
 
+  const gainNode = context.createGain();
   gainNode.gain.setValueAtTime(0.0001, whenSeconds);
-  gainNode.gain.exponentialRampToValueAtTime(0.34, whenSeconds + 0.002);
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.085);
+  gainNode.gain.exponentialRampToValueAtTime(0.22, whenSeconds + 0.0015);
+  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.06);
 
-  oscillator.connect(highPass);
-  highPass.connect(lowPass);
-  lowPass.connect(gainNode);
+  source.connect(highPass);
+  highPass.connect(bandPass);
+  bandPass.connect(gainNode);
   gainNode.connect(context.destination);
 
-  oscillator.start(whenSeconds);
-  oscillator.stop(whenSeconds + 0.09);
+  source.start(whenSeconds);
+  source.stop(whenSeconds + 0.07);
 };
 
 const playSequence = async (instrument, midiSequence, rhythm) => {
