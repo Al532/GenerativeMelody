@@ -734,7 +734,7 @@ const scheduleHiHat = (context, whenSeconds) => {
 
   const gainNode = context.createGain();
   gainNode.gain.setValueAtTime(0.0001, whenSeconds);
-  gainNode.gain.exponentialRampToValueAtTime(0.22, whenSeconds + 0.0015);
+  gainNode.gain.exponentialRampToValueAtTime(1, whenSeconds + 0.0015);
   gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.06);
 
   source.connect(highPass);
