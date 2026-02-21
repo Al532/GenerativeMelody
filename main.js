@@ -4,6 +4,8 @@ const STORAGE_KEY = "melody-prototype-settings-v2";
 const RHYTHM_PRESETS_KEY = "melody-prototype-rhythm-presets-v1";
 const FADE_OUT_MS = 50;
 const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
+const FORBIDDEN_DESCENDING_LEAP_SEMITONES = new Set([-10]);
+const FORBIDDEN_BIDIRECTIONAL_LEAP_SEMITONES = new Set([11]);
 const MAX_B_TO_A_LEAP_SEMITONES = 2;
 const MAX_E_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
@@ -587,8 +589,16 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
     currentMidi,
     currentCategory
   ) => {
-    const leap = Math.abs(currentMidi - prevMidi);
+    const movement = currentMidi - prevMidi;
+    const leap = Math.abs(movement);
     if (leap > MAX_CONSECUTIVE_LEAP_SEMITONES) {
+      return false;
+    }
+
+    if (
+      FORBIDDEN_BIDIRECTIONAL_LEAP_SEMITONES.has(leap) ||
+      FORBIDDEN_DESCENDING_LEAP_SEMITONES.has(movement)
+    ) {
       return false;
     }
 
@@ -861,6 +871,7 @@ const handleLoadPreset = () => {
 
   rhythmSettings = sanitizeRhythmSettings(selected);
   applyRhythmSettingsToSliders();
+  presetNameInput.value = name;
   persistSettings();
   setStatus(`Preset "${name}" chargé.`);
 };
