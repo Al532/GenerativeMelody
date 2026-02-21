@@ -172,6 +172,26 @@ textarea {
   gap: 10px;
 }
 
+.preset-transfer-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ornament-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+
+.ornament-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .controls {
   margin-top: 16px;
   display: flex;
@@ -223,6 +243,10 @@ footer {
 @media (max-width: 720px) {
   .preset-row {
     grid-template-columns: 1fr;
+  }
+
+  .preset-transfer-row {
+    flex-direction: column;
   }
 
   .rhythm-grid {

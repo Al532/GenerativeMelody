@@ -1,8 +1,7 @@
-import { instruments, instrumentRanges } from "./assets.js";
+import { instruments } from "./assets.js";
 
 const STORAGE_KEY = "melody-prototype-settings-v2";
 const RHYTHM_PRESETS_KEY = "melody-prototype-rhythm-presets-v1";
-const FADE_OUT_MS = 50;
 const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
 const FORBIDDEN_DESCENDING_LEAP_SEMITONES = new Set([-10]);
 const FORBIDDEN_BIDIRECTIONAL_LEAP_SEMITONES = new Set([11]);
@@ -32,6 +31,13 @@ const DEFAULT_SETTINGS = {
   ambitusMin: "50",
   ambitusMax: "72",
   instrument: "Piano",
+  ornaments: {
+    long: false,
+    vibrato: false,
+    bend: false,
+    fall: false,
+    portamento: false,
+  },
 };
 
 const primaryTonesInput = document.querySelector("#primary-tones");
@@ -52,6 +58,14 @@ const presetSelect = document.querySelector("#preset-select");
 const savePresetButton = document.querySelector("#save-preset-btn");
 const loadPresetButton = document.querySelector("#load-preset-btn");
 const deletePresetButton = document.querySelector("#delete-preset-btn");
+const exportPresetValuesButton = document.querySelector("#export-preset-values-btn");
+const importPresetValuesButton = document.querySelector("#import-preset-values-btn");
+const importPresetValuesFileInput = document.querySelector("#import-preset-values-file");
+const ornamentLongInput = document.querySelector("#ornament-long");
+const ornamentVibratoInput = document.querySelector("#ornament-vibrato");
+const ornamentBendInput = document.querySelector("#ornament-bend");
+const ornamentFallInput = document.querySelector("#ornament-fall");
+const ornamentPortamentoInput = document.querySelector("#ornament-portamento");
 const generateButton = document.querySelector("#generate-btn");
 const replayButton = document.querySelector("#replay-btn");
 const statusLabel = document.querySelector("#status");
@@ -59,8 +73,7 @@ const resultInstrument = document.querySelector("#result-instrument");
 const resultPattern = document.querySelector("#result-pattern");
 const resultSequence = document.querySelector("#result-sequence");
 
-const sampleCache = new Map();
-let hiHatNoiseBuffer = null;
+let ornaments = structuredClone(DEFAULT_SETTINGS.ornaments);
 const NOTE_LABELS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const TONE_TO_PITCH_CLASS = {
   c: 0,
@@ -114,7 +127,7 @@ let rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
 // aux presets (sanitize/save/load) en conservant la compatibilité avec les presets existants.
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-const lerp = (start, end, factor) => start + (end - start) * factor;
+const centsToRatio = (cents) => 2 ** (cents / 1200);
 
 const weightedChoice = (values, weights) => {
   const valid = values.map((value, index) => ({ value, weight: Math.max(0, Number(weights[index] ?? 0)) }));
@@ -165,17 +178,32 @@ const midiToLabel = (midi) => {
   return `${chroma}${octave}`;
 };
 
-const createAudioContext = () => new (window.AudioContext || window.webkitAudioContext)();
-let audioContext = null;
+const midiToHz = (midi) => Number(Tone.Frequency(midi, "midi").toFrequency());
 
-const ensureAudioContext = async () => {
-  if (!audioContext) {
-    audioContext = createAudioContext();
-  }
-  if (audioContext.state === "suspended") {
-    await audioContext.resume();
-  }
-  return audioContext;
+const sanitizeOrnaments = (source) => ({
+  long: Boolean(source?.long),
+  vibrato: Boolean(source?.vibrato),
+  bend: Boolean(source?.bend),
+  fall: Boolean(source?.fall),
+  portamento: Boolean(source?.portamento),
+});
+
+const applyOrnamentsToInputs = () => {
+  ornamentLongInput.checked = ornaments.long;
+  ornamentVibratoInput.checked = ornaments.vibrato;
+  ornamentBendInput.checked = ornaments.bend;
+  ornamentFallInput.checked = ornaments.fall;
+  ornamentPortamentoInput.checked = ornaments.portamento;
+};
+
+const syncOrnamentsFromInputs = () => {
+  ornaments = {
+    long: ornamentLongInput.checked,
+    vibrato: ornamentVibratoInput.checked,
+    bend: ornamentBendInput.checked,
+    fall: ornamentFallInput.checked,
+    portamento: ornamentPortamentoInput.checked,
+  };
 };
 
 const createSliderRow = (container, key, label) => {
@@ -347,6 +375,7 @@ const setStatus = (message, isError = false) => {
 };
 
 const persistSettings = () => {
+  syncOrnamentsFromInputs();
   const data = {
     primaryTones: primaryTonesInput.value,
     secondaryTones: secondaryTonesInput.value,
@@ -355,6 +384,7 @@ const persistSettings = () => {
     ambitusMax: ambitusMaxInput.value,
     instrument: instrumentSelect.value,
     rhythmSettings,
+    ornaments,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
@@ -369,7 +399,9 @@ const restoreSettings = () => {
     ambitusMaxInput.value = DEFAULT_SETTINGS.ambitusMax;
     instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
+    ornaments = structuredClone(DEFAULT_SETTINGS.ornaments);
     applyRhythmSettingsToSliders();
+    applyOrnamentsToInputs();
     return;
   }
 
@@ -386,11 +418,15 @@ const restoreSettings = () => {
       instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     }
     rhythmSettings = sanitizeRhythmSettings(data.rhythmSettings ?? DEFAULT_RHYTHM_SETTINGS);
+    ornaments = sanitizeOrnaments(data.ornaments ?? DEFAULT_SETTINGS.ornaments);
     applyRhythmSettingsToSliders();
+    applyOrnamentsToInputs();
   } catch {
     localStorage.removeItem(STORAGE_KEY);
     rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
+    ornaments = structuredClone(DEFAULT_SETTINGS.ornaments);
     applyRhythmSettingsToSliders();
+    applyOrnamentsToInputs();
   }
 };
 
@@ -431,25 +467,6 @@ const populateInstrumentSelect = () => {
     .map((instrument) => `<option value="${instrument}">${instrument}</option>`)
     .join("");
   instrumentSelect.innerHTML = options;
-};
-
-const getBufferKey = (instrument, midi) => `${instrument}:${midi}`;
-
-const loadSampleBuffer = async (instrument, midi, context) => {
-  const key = getBufferKey(instrument, midi);
-  if (sampleCache.has(key)) {
-    return sampleCache.get(key);
-  }
-
-  const response = await fetch(`assets/MP3/${instrument}/${midi}.mp3`);
-  if (!response.ok) {
-    throw new Error(`Sample introuvable: ${instrument} ${midi}`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const audioBuffer = await context.decodeAudioData(arrayBuffer);
-  sampleCache.set(key, audioBuffer);
-  return audioBuffer;
 };
 
 const parseToneClasses = (raw, label) => {
@@ -728,105 +745,126 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
 
 let lastGeneratedSequence = null;
 
-const scheduleKick = (context, whenSeconds) => {
-  const oscillator = context.createOscillator();
-  const gainNode = context.createGain();
-
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(140, whenSeconds);
-  oscillator.frequency.exponentialRampToValueAtTime(42, whenSeconds + 0.12);
-
-  gainNode.gain.setValueAtTime(0.0001, whenSeconds);
-  gainNode.gain.exponentialRampToValueAtTime(0.8, whenSeconds + 0.005);
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.14);
-
-  oscillator.connect(gainNode);
-  gainNode.connect(context.destination);
-  oscillator.start(whenSeconds);
-  oscillator.stop(whenSeconds + 0.16);
-};
-
-const scheduleHiHat = (context, whenSeconds) => {
-  if (!hiHatNoiseBuffer) {
-    const bufferSize = Math.max(2048, context.sampleRate * 0.1);
-    hiHatNoiseBuffer = context.createBuffer(1, bufferSize, context.sampleRate);
-    const channelData = hiHatNoiseBuffer.getChannelData(0);
-
-    for (let i = 0; i < channelData.length; i += 1) {
-      channelData[i] = Math.random() * 2 - 1;
-    }
-  }
-
-  const source = context.createBufferSource();
-  source.buffer = hiHatNoiseBuffer;
-
-  const highPass = context.createBiquadFilter();
-  highPass.type = "highpass";
-  highPass.frequency.setValueAtTime(7000, whenSeconds);
-  highPass.Q.setValueAtTime(1.1, whenSeconds);
-
-  const bandPass = context.createBiquadFilter();
-  bandPass.type = "bandpass";
-  bandPass.frequency.setValueAtTime(9800, whenSeconds);
-  bandPass.Q.setValueAtTime(2.6, whenSeconds);
-
-  const gainNode = context.createGain();
-  gainNode.gain.setValueAtTime(0.0001, whenSeconds);
-  gainNode.gain.exponentialRampToValueAtTime(1, whenSeconds + 0.0015);
-  gainNode.gain.exponentialRampToValueAtTime(0.0001, whenSeconds + 0.06);
-
-  source.connect(highPass);
-  highPass.connect(bandPass);
-  bandPass.connect(gainNode);
-  gainNode.connect(context.destination);
-
-  source.start(whenSeconds);
-  source.stop(whenSeconds + 0.07);
-};
-
-const playSequence = async (instrument, midiSequence, rhythm) => {
-  const context = await ensureAudioContext();
-  const buffers = await Promise.all(midiSequence.map((midi) => loadSampleBuffer(instrument, midi, context)));
-
+const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments) => {
   const subdivDur = (60 / rhythm.bpm) / 4;
-  const noteDurationSeconds = Math.max(0.11, subdivDur * 0.9);
-  const startAt = context.currentTime + 0.03;
-  const introSubdivisions = 8;
-  const sequenceRepeats = 2;
-  const sequenceLengthSubdivisions = RHYTHM_GRID_SIZE;
-  const totalSequenceSubdivisions = sequenceLengthSubdivisions * sequenceRepeats;
-  const melodyStartAt = startAt + introSubdivisions * subdivDur;
+  return midiSequence.map((midi, index) => {
+    const event = rhythm.noteEvents[index];
+    const nextEvent = rhythm.noteEvents[index + 1] ?? null;
+    const nextMidi = midiSequence[index + 1] ?? null;
+    const start = event.subdivisionOffset * subdivDur;
 
-  for (let hitIndex = 0; hitIndex < 4; hitIndex += 1) {
-    const hiHatStart = startAt + hitIndex * 2 * subdivDur;
-    scheduleHiHat(context, hiHatStart);
+    let duration = subdivDur;
+    if (activeOrnaments.long) {
+      duration = nextEvent
+        ? Math.max(0.06, (nextEvent.subdivisionOffset - event.subdivisionOffset) * subdivDur)
+        : 2 * subdivDur;
+    }
+
+    return {
+      midi,
+      nextMidi,
+      start,
+      duration,
+    };
+  });
+};
+
+const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
+  const { midi, nextMidi, start, duration } = timelineItem;
+  const baseFreq = midiToHz(midi);
+  const end = start + duration;
+
+  synth.frequency.setValueAtTime(baseFreq, start);
+
+  if (activeOrnaments.bend) {
+    synth.frequency.setValueAtTime(baseFreq * centsToRatio(-30), start);
+    synth.frequency.linearRampToValueAtTime(baseFreq, start + duration / 2);
   }
 
-  for (let beatIndex = 0; beatIndex < totalSequenceSubdivisions / 4; beatIndex += 1) {
-    scheduleKick(context, melodyStartAt + beatIndex * 4 * subdivDur);
+  if (activeOrnaments.portamento && nextMidi !== null) {
+    const glideStart = Math.max(start, end - 0.15);
+    synth.frequency.setValueAtTime(baseFreq, glideStart);
+    synth.frequency.linearRampToValueAtTime(midiToHz(nextMidi), end);
+  } else if (activeOrnaments.fall) {
+    const fallStart = Math.max(start, end - 0.15);
+    synth.frequency.setValueAtTime(baseFreq, fallStart);
+    synth.frequency.linearRampToValueAtTime(baseFreq / 2, end);
   }
 
-  for (let repeatIndex = 0; repeatIndex < sequenceRepeats; repeatIndex += 1) {
-    const repeatOffsetSubdivisions = repeatIndex * sequenceLengthSubdivisions;
-    buffers.forEach((buffer, index) => {
-      const event = rhythm.noteEvents[index];
-      const source = context.createBufferSource();
-      const gainNode = context.createGain();
-      source.buffer = buffer;
-      source.connect(gainNode);
-      gainNode.connect(context.destination);
+  if (activeOrnaments.vibrato && duration > 0.5) {
+    const vibratoStart = start + 0.5;
+    const vibratoDepth = baseFreq * (centsToRatio(15) - 1);
+    const vibratoLfo = new Tone.Oscillator(8, "sine").start(vibratoStart);
+    const vibratoGain = new Tone.Gain(vibratoDepth).connect(synth.frequency);
+    vibratoLfo.connect(vibratoGain);
+    vibratoLfo.stop(end);
+  }
 
-      const noteStart = melodyStartAt + (repeatOffsetSubdivisions + event.subdivisionOffset) * subdivDur;
-      const fadeStart = noteStart + noteDurationSeconds;
-      const noteStop = fadeStart + FADE_OUT_MS / 1000;
+  synth.triggerAttackRelease(baseFreq, duration, start, 0.8);
+};
 
-      gainNode.gain.setValueAtTime(1, noteStart);
-      gainNode.gain.setValueAtTime(1, fadeStart);
-      gainNode.gain.linearRampToValueAtTime(0.0001, noteStop);
+const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
+  await Tone.start();
+  const startAt = Tone.now() + 0.05;
+  const synth = new Tone.MonoSynth({
+    oscillator: { type: "sawtooth" },
+    envelope: {
+      attack: 0.005,
+      decay: 0.04,
+      sustain: 0.85,
+      release: 0.08,
+    },
+  }).toDestination();
 
-      source.start(noteStart, 0);
-      source.stop(noteStop);
-    });
+  const timeline = createPlayableTimeline(midiSequence, rhythm, activeOrnaments);
+  timeline.forEach((item) => {
+    scheduleToneNote(synth, { ...item, start: startAt + item.start }, activeOrnaments);
+  });
+
+  const totalDuration = Math.max(...timeline.map((item) => item.start + item.duration), 0) + 0.2;
+  window.setTimeout(() => synth.dispose(), totalDuration * 1000);
+};
+
+const handleExportPresetValues = () => {
+  syncRhythmSettingsFromSliders();
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    rhythmSettings: sanitizeRhythmPreset(rhythmSettings),
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `preset-probas-${Date.now()}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  setStatus("Export des probas terminé.");
+};
+
+const handleImportPresetValuesClick = () => {
+  importPresetValuesFileInput.value = "";
+  importPresetValuesFileInput.click();
+};
+
+const handleImportPresetValuesFile = async (event) => {
+  const [file] = event.target.files ?? [];
+  if (!file) {
+    return;
+  }
+
+  try {
+    const data = JSON.parse(await file.text());
+    rhythmSettings = {
+      ...rhythmSettings,
+      ...sanitizeRhythmPreset(data?.rhythmSettings ?? data),
+    };
+    applyRhythmSettingsToSliders();
+    persistSettings();
+    setStatus("Import des probas terminé.");
+  } catch {
+    setStatus("Fichier JSON invalide pour l'import des probas.", true);
   }
 };
 
@@ -916,40 +954,29 @@ const handleGenerate = async () => {
   setStatus("Génération…");
 
   try {
-    const instrument = instrumentSelect.value;
     const { minMidi, maxMidi } = parseInputs();
     const toneGroups = createToneGroups();
-    const range = instrumentRanges[instrument];
-
-    const playableMin = Math.max(minMidi, range.min);
-    const playableMax = Math.min(maxMidi, range.max);
-
-    if (playableMin > playableMax) {
-      throw new Error(
-        `Aucune note jouable pour ${instrument} dans l’ambitus ${minMidi}-${maxMidi}.`
-      );
-    }
-
     syncRhythmSettingsFromSliders();
+    syncOrnamentsFromInputs();
     const rhythm = createRhythmPattern(rhythmSettings);
     const noteCount = rhythm.noteEvents.length;
     const midiSequence = buildMelody(
-      playableMin,
-      playableMax,
+      minMidi,
+      maxMidi,
       noteCount,
       toneGroups,
       rhythmSettings.repetitionProbabilityFactor
     );
     const labels = midiSequence.map(midiToLabel);
 
-    resultInstrument.textContent = instrument;
+    resultInstrument.textContent = "Sawtooth (Tone.js)";
     resultPattern.textContent = formatPatternForDisplay(rhythm.grid, rhythm.tripletStarts);
     resultSequence.textContent = labels.join(", ");
 
     persistSettings();
-    await playSequence(instrument, midiSequence, rhythm);
+    await playSequenceWithTone(midiSequence, rhythm, ornaments);
 
-    lastGeneratedSequence = { instrument, midiSequence, rhythm };
+    lastGeneratedSequence = { midiSequence, rhythm, ornaments: { ...ornaments } };
     replayButton.disabled = false;
 
     setStatus(`Séquence générée (${noteCount} notes / hits, ${rhythm.bpm} BPM).`);
@@ -972,10 +999,10 @@ const handleReplay = async () => {
   setStatus("Replay de la dernière séquence…");
 
   try {
-    await playSequence(
-      lastGeneratedSequence.instrument,
+    await playSequenceWithTone(
       lastGeneratedSequence.midiSequence,
-      lastGeneratedSequence.rhythm
+      lastGeneratedSequence.rhythm,
+      lastGeneratedSequence.ornaments
     );
     setStatus("Dernière séquence rejouée.");
   } catch (error) {
@@ -1020,5 +1047,21 @@ repetitionPenaltySlider.addEventListener("input", () => {
 savePresetButton.addEventListener("click", handleSavePreset);
 loadPresetButton.addEventListener("click", handleLoadPreset);
 deletePresetButton.addEventListener("click", handleDeletePreset);
+exportPresetValuesButton.addEventListener("click", handleExportPresetValues);
+importPresetValuesButton.addEventListener("click", handleImportPresetValuesClick);
+importPresetValuesFileInput.addEventListener("change", handleImportPresetValuesFile);
 generateButton.addEventListener("click", handleGenerate);
 replayButton.addEventListener("click", handleReplay);
+
+[
+  ornamentLongInput,
+  ornamentVibratoInput,
+  ornamentBendInput,
+  ornamentFallInput,
+  ornamentPortamentoInput,
+].forEach((input) => {
+  input.addEventListener("change", () => {
+    syncOrnamentsFromInputs();
+    persistSettings();
+  });
+});
