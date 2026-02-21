@@ -222,7 +222,15 @@ footer {
   }
 
   .rhythm-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rhythm-grid .rhythm-head {
+    display: none;
+  }
+
+  .rhythm-grid .slider-label {
+    grid-column: 1 / -1;
   }
 
   .slider-row {
