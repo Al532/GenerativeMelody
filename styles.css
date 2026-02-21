@@ -149,6 +149,10 @@ textarea {
   gap: 12px;
 }
 
+.bpm-row {
+  margin-bottom: 10px;
+}
+
 .slider-input-wrap {
   display: flex;
   align-items: center;

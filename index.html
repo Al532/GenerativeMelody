@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=18">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <p class="site-version">Version du site&nbsp;: v17</p>
+  <p class="site-version">Version du site&nbsp;: v18</p>
   <header class="hero">
     <div>
       <p class="eyebrow">Prototype</p>
@@ -55,6 +55,13 @@
       </div>
 
       <h3>Probabilités rythmiques</h3>
+      <label class="slider-row bpm-row" for="bpm-slider">
+        <span class="slider-label">BPM</span>
+        <div class="slider-input-wrap">
+          <input id="bpm-slider" type="range" min="30" max="140" step="1" value="92">
+          <span class="slider-value" id="bpm-value">92</span>
+        </div>
+      </label>
       <div class="rhythm-grid" id="jump-sliders"></div>
 
       <h3>Triolets</h3>
@@ -88,9 +95,9 @@
   </main>
 
   <footer>
-    <p>Version prototype v17: jumps pair/impair + triplets + presets + affichage symbolique.</p>
+    <p>Version prototype v18: jumps pair/impair + triplets + presets + affichage symbolique + slider BPM.</p>
   </footer>
 
-  <script type="module" src="main.js?v=17"></script>
+  <script type="module" src="main.js?v=18"></script>
 </body>
 </html>

@@ -37,6 +37,8 @@ const forbiddenTonesInput = document.querySelector("#forbidden-tones");
 const ambitusMinInput = document.querySelector("#ambitus-min");
 const ambitusMaxInput = document.querySelector("#ambitus-max");
 const instrumentSelect = document.querySelector("#instrument-select");
+const bpmSlider = document.querySelector("#bpm-slider");
+const bpmValue = document.querySelector("#bpm-value");
 const jumpSlidersContainer = document.querySelector("#jump-sliders");
 const tripletSlidersContainer = document.querySelector("#triplet-sliders");
 const afterTripletSlidersContainer = document.querySelector("#after-triplet-sliders");
@@ -263,7 +265,7 @@ const sanitizeWeightArray = (values, length) =>
   Array.from({ length }, (_, index) => clamp(Number(values?.[index] ?? 0), 0, 10));
 
 const sanitizeRhythmSettings = (source) => ({
-  bpm: clamp(Number(source?.bpm ?? DEFAULT_RHYTHM_SETTINGS.bpm), 60, 140),
+  bpm: clamp(Number(source?.bpm ?? DEFAULT_RHYTHM_SETTINGS.bpm), 30, 140),
   jumpOddWeights: sanitizeWeightArray(source?.jumpOddWeights, 5),
   jumpEvenWeights: sanitizeWeightArray(source?.jumpEvenWeights, 5),
   tripletChance: sanitizeWeightArray(source?.tripletChance, 3),
@@ -271,6 +273,9 @@ const sanitizeRhythmSettings = (source) => ({
 });
 
 const applyRhythmSettingsToSliders = () => {
+  bpmSlider.value = String(rhythmSettings.bpm);
+  bpmValue.textContent = String(rhythmSettings.bpm);
+
   JUMP_KEYS.forEach(({ key }, index) => {
     const oddBinding = sliderBindings.get(`odd-${key}`);
     const evenBinding = sliderBindings.get(`even-${key}`);
@@ -294,6 +299,7 @@ const applyRhythmSettingsToSliders = () => {
 };
 
 const syncRhythmSettingsFromSliders = () => {
+  rhythmSettings.bpm = Number(bpmSlider.value);
   rhythmSettings.jumpOddWeights = JUMP_KEYS.map(({ key }) => Number(sliderBindings.get(`odd-${key}`).input.value));
   rhythmSettings.jumpEvenWeights = JUMP_KEYS.map(({ key }) =>
     Number(sliderBindings.get(`even-${key}`).input.value)
@@ -929,6 +935,12 @@ initializeRhythmSliders();
 restoreSettings();
 refreshPresetSelect();
 persistSettings();
+
+bpmSlider.addEventListener("input", () => {
+  bpmValue.textContent = bpmSlider.value;
+  syncRhythmSettingsFromSliders();
+  persistSettings();
+});
 
 [
   primaryTonesInput,
