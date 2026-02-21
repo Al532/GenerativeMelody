@@ -9,6 +9,8 @@ const MAX_B_TO_A_LEAP_SEMITONES = 2;
 const MAX_E_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
 const DEFAULT_REPETITION_PROBABILITY_FACTOR = 0.25;
+const BACKING_TRACK_URL = "music.mp3";
+const BACKING_TRACK_OFFSET_SECONDS = 0.92;
 
 const RHYTHM_GRID_SIZE = 16;
 const JUMP_VALUES = [1, 2, 3, 4, 5];
@@ -744,6 +746,21 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
 };
 
 let lastGeneratedSequence = null;
+let backingTrackPlayerPromise = null;
+
+const getBackingTrackPlayer = async () => {
+  if (!backingTrackPlayerPromise) {
+    backingTrackPlayerPromise = (async () => {
+      const player = new Tone.Player({
+        url: BACKING_TRACK_URL,
+      }).toDestination();
+      await Tone.loaded();
+      return player;
+    })();
+  }
+
+  return backingTrackPlayerPromise;
+};
 
 const scheduleDrumsWithTone = (startAt, rhythm, totalSubdivisions, introSubdivisions = 0) => {
   const subdivDur = (60 / rhythm.bpm) / 4;
@@ -853,6 +870,7 @@ const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
   const sequenceLengthSubdivisions = RHYTHM_GRID_SIZE;
   const totalSequenceSubdivisions = sequenceLengthSubdivisions * sequenceRepeats;
   const melodyStartAt = startAt + introSubdivisions * (60 / rhythm.bpm) / 4;
+  const backingTrackStartAt = Math.max(startAt, melodyStartAt - BACKING_TRACK_OFFSET_SECONDS);
 
   const synth = new Tone.MonoSynth({
     oscillator: { type: "sawtooth" },
@@ -874,6 +892,9 @@ const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
   }).toDestination();
 
   const timeline = createPlayableTimeline(midiSequence, rhythm, activeOrnaments);
+  const backingTrackPlayer = await getBackingTrackPlayer();
+  backingTrackPlayer.stop(startAt);
+  backingTrackPlayer.start(backingTrackStartAt);
   const drumNodes = scheduleDrumsWithTone(startAt, rhythm, totalSequenceSubdivisions, introSubdivisions);
   for (let repeatIndex = 0; repeatIndex < sequenceRepeats; repeatIndex += 1) {
     const repeatOffset = (repeatIndex * sequenceLengthSubdivisions * 60) / (rhythm.bpm * 4);
@@ -891,6 +912,7 @@ const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
     totalSequenceSubdivisions * (60 / rhythm.bpm) / 4 +
     0.3;
   window.setTimeout(() => {
+    backingTrackPlayer.stop();
     synth.dispose();
     drumNodes.hiHat.dispose();
     drumNodes.hiHatFilter.dispose();
