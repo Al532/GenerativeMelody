@@ -124,6 +124,48 @@ const weightedChoice = (values, weights) => {
   return valid[valid.length - 1].value;
 };
 
+const shuffled = (values) => {
+  const copy = [...values];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]];
+  }
+  return copy;
+};
+
+const shuffledWithRepeatPenalty = (values, previousMidi) => {
+  if (previousMidi === null) {
+    return shuffled(values);
+  }
+
+  return [...values]
+    .map((value) => {
+      const penalty = value.midi === previousMidi ? REPETITION_PROBABILITY_FACTOR : 1;
+      return { value, score: Math.random() / penalty };
+    })
+    .sort((left, right) => left.score - right.score)
+    .map(({ value }) => value);
+};
+
+const midiToLabel = (midi) => {
+  const chroma = NOTE_LABELS[midi % 12];
+  const octave = Math.floor(midi / 12) - 1;
+  return `${chroma}${octave}`;
+};
+
+const createAudioContext = () => new (window.AudioContext || window.webkitAudioContext)();
+let audioContext = null;
+
+const ensureAudioContext = async () => {
+  if (!audioContext) {
+    audioContext = createAudioContext();
+  }
+  if (audioContext.state === "suspended") {
+    await audioContext.resume();
+  }
+  return audioContext;
+};
+
 const createSliderRow = (container, key, label) => {
   const row = document.createElement("div");
   row.className = "slider-row";
