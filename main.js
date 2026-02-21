@@ -745,8 +745,9 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
 
 let lastGeneratedSequence = null;
 
-const scheduleDrumsWithTone = (startAt, rhythm, totalSubdivisions) => {
+const scheduleDrumsWithTone = (startAt, rhythm, totalSubdivisions, introSubdivisions = 0) => {
   const subdivDur = (60 / rhythm.bpm) / 4;
+  const introDuration = introSubdivisions * subdivDur;
   const hiHat = new Tone.NoiseSynth({
     noise: { type: "white" },
     envelope: {
@@ -779,7 +780,7 @@ const scheduleDrumsWithTone = (startAt, rhythm, totalSubdivisions) => {
 
   const totalBeats = totalSubdivisions / 4;
   for (let beatIndex = 0; beatIndex < totalBeats; beatIndex += 1) {
-    kick.triggerAttackRelease("C1", "8n", startAt + beatIndex * 4 * subdivDur, 0.85);
+    kick.triggerAttackRelease("C1", "8n", startAt + introDuration + beatIndex * 4 * subdivDur, 0.85);
   }
 
   return { hiHat, hiHatFilter, kick };
@@ -817,7 +818,7 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
   synth.frequency.setValueAtTime(baseFreq, start);
 
   if (activeOrnaments.bend) {
-    synth.frequency.setValueAtTime(baseFreq * centsToRatio(-30), start);
+    synth.frequency.setValueAtTime(baseFreq * centsToRatio(-100), start);
     synth.frequency.linearRampToValueAtTime(baseFreq, start + duration / 2);
   }
 
@@ -831,9 +832,10 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
     synth.frequency.linearRampToValueAtTime(baseFreq / 2, end);
   }
 
-  if (activeOrnaments.vibrato && duration > 0.5) {
-    const vibratoStart = start + 0.5;
-    const vibratoDepth = baseFreq * (centsToRatio(15) - 1);
+  if (activeOrnaments.vibrato) {
+    const vibratoDelay = 0.15;
+    const vibratoStart = Math.min(start + vibratoDelay, end);
+    const vibratoDepth = baseFreq * (centsToRatio(50) - 1);
     const vibratoLfo = new Tone.Oscillator(8, "sine").start(vibratoStart);
     const vibratoGain = new Tone.Gain(vibratoDepth).connect(synth.frequency);
     vibratoLfo.connect(vibratoGain);
@@ -872,7 +874,7 @@ const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
   }).toDestination();
 
   const timeline = createPlayableTimeline(midiSequence, rhythm, activeOrnaments);
-  const drumNodes = scheduleDrumsWithTone(startAt, rhythm, totalSequenceSubdivisions);
+  const drumNodes = scheduleDrumsWithTone(startAt, rhythm, totalSequenceSubdivisions, introSubdivisions);
   for (let repeatIndex = 0; repeatIndex < sequenceRepeats; repeatIndex += 1) {
     const repeatOffset = (repeatIndex * sequenceLengthSubdivisions * 60) / (rhythm.bpm * 4);
     timeline.forEach((item) => {
