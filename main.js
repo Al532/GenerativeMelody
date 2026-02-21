@@ -808,6 +808,15 @@ const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
   const startAt = Tone.now() + 0.05;
   const synth = new Tone.MonoSynth({
     oscillator: { type: "sawtooth" },
+    filter: {
+      type: "allpass",
+      frequency: 20000,
+      Q: 0,
+    },
+    filterEnvelope: {
+      baseFrequency: 20000,
+      octaves: 0,
+    },
     envelope: {
       attack: 0.005,
       decay: 0.04,
@@ -976,7 +985,7 @@ const handleGenerate = async () => {
     persistSettings();
     await playSequenceWithTone(midiSequence, rhythm, ornaments);
 
-    lastGeneratedSequence = { midiSequence, rhythm, ornaments: { ...ornaments } };
+    lastGeneratedSequence = { midiSequence, rhythm };
     replayButton.disabled = false;
 
     setStatus(`Séquence générée (${noteCount} notes / hits, ${rhythm.bpm} BPM).`);
@@ -999,10 +1008,11 @@ const handleReplay = async () => {
   setStatus("Replay de la dernière séquence…");
 
   try {
+    syncOrnamentsFromInputs();
     await playSequenceWithTone(
       lastGeneratedSequence.midiSequence,
       lastGeneratedSequence.rhythm,
-      lastGeneratedSequence.ornaments
+      ornaments
     );
     setStatus("Dernière séquence rejouée.");
   } catch (error) {
