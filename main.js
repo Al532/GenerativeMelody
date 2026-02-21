@@ -831,12 +831,14 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
   const { midi, nextMidi, start, duration } = timelineItem;
   const baseFreq = midiToHz(midi);
   const end = start + duration;
+  const bendStartFreq = baseFreq * centsToRatio(-50);
+  const noteStartFreq = activeOrnaments.bend ? bendStartFreq : baseFreq;
 
-  synth.frequency.setValueAtTime(baseFreq, start);
+  synth.frequency.setValueAtTime(noteStartFreq, start);
 
   if (activeOrnaments.bend) {
-    synth.frequency.setValueAtTime(baseFreq * centsToRatio(-100), start);
-    synth.frequency.linearRampToValueAtTime(baseFreq, start + duration / 2);
+    const bendRiseEnd = Math.min(end, start + Math.max(0.08, duration * 0.45));
+    synth.frequency.linearRampToValueAtTime(baseFreq, bendRiseEnd);
   }
 
   if (activeOrnaments.portamento && nextMidi !== null) {
@@ -857,6 +859,12 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
     const vibratoGain = new Tone.Gain(vibratoDepth).connect(synth.frequency);
     vibratoLfo.connect(vibratoGain);
     vibratoLfo.stop(end);
+  }
+
+  if (activeOrnaments.bend) {
+    synth.triggerAttack(noteStartFreq, start, 0.8);
+    synth.triggerRelease(end);
+    return;
   }
 
   synth.triggerAttackRelease(baseFreq, duration, start, 0.8);
