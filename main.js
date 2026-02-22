@@ -831,7 +831,7 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
   const { midi, nextMidi, start, duration } = timelineItem;
   const baseFreq = midiToHz(midi);
   const end = start + duration;
-  const bendStartFreq = baseFreq * centsToRatio(-50);
+  const bendStartFreq = baseFreq * centsToRatio(-200);
   const noteStartFreq = activeOrnaments.bend ? bendStartFreq : baseFreq;
 
   synth.frequency.setValueAtTime(noteStartFreq, start);
