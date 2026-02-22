@@ -911,8 +911,9 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
       largestIntervalIndex >= 0 &&
       nextMidi !== null
     ) {
-      const nextStart = timeline[index + 1]?.start ?? null;
-      if (nextStart !== null && item.naturalDuration >= nextStart - item.start) {
+      const isAdjacentSixteenth = distanceToNextSixteenth === 1;
+      const isLongNote = perNote[index].long;
+      if (isAdjacentSixteenth || isLongNote) {
         perNote[index].portamento = true;
       }
     }
