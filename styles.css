@@ -109,7 +109,7 @@ button {
 }
 
 textarea,
-input,
+input:not([type="checkbox"]):not([type="radio"]),
 select {
   width: 100%;
   border-radius: 10px;
@@ -186,9 +186,16 @@ textarea {
 }
 
 .ornament-rules label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 8px;
+}
+
+.ornament-rules input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
 }
 
 .controls {

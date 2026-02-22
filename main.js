@@ -840,9 +840,11 @@ const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments) => {
     return {
       midi,
       nextMidi,
+      category: pitchClassCategory(midi),
       start,
       duration,
       naturalDuration,
+      subdivisionOffset: event.subdivisionOffset,
     };
   });
 };
@@ -865,7 +867,10 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
     const midi = midiSequence[index];
     const pitchClass = midi % 12;
     const nextMidi = midiSequence[index + 1] ?? null;
-    const intervalToNext = nextMidi === null ? null : Math.abs(nextMidi - midi);
+    const nextSubdivisionOffset = timeline[index + 1]?.subdivisionOffset ?? null;
+    const distanceToNextSixteenth = nextSubdivisionOffset === null
+      ? null
+      : nextSubdivisionOffset - item.subdivisionOffset;
 
     if (rules.longNoteE && pitchClass === 4) {
       perNote[index].long = true;
@@ -879,10 +884,16 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
     if (rules.fallLastNote && index === timeline.length - 1) {
       perNote[index].fall = true;
     }
-    if (rules.fallInterval3 && intervalToNext !== null && intervalToNext >= 3) {
+    if (
+      rules.fallInterval3 &&
+      item.category === "A" &&
+      !perNote[index].long &&
+      distanceToNextSixteenth !== null &&
+      distanceToNextSixteenth >= 3
+    ) {
       perNote[index].fall = true;
     }
-    if (rules.bendFirstIf3 && index === 0 && timeline.length >= 3) {
+    if (rules.bendFirstIf3 && index === 0 && distanceToNextSixteenth !== null && distanceToNextSixteenth >= 3) {
       perNote[index].bend = true;
     }
     if (rules.vibratoLongest && item.naturalDuration === longestDuration && longestDuration > 0) {
