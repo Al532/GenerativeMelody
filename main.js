@@ -33,13 +33,6 @@ const DEFAULT_SETTINGS = {
   ambitusMin: "50",
   ambitusMax: "72",
   instrument: "Piano",
-  ornaments: {
-    long: false,
-    vibrato: false,
-    bend: false,
-    fall: false,
-    portamento: false,
-  },
 };
 
 const primaryTonesInput = document.querySelector("#primary-tones");
@@ -63,11 +56,14 @@ const deletePresetButton = document.querySelector("#delete-preset-btn");
 const exportPresetValuesButton = document.querySelector("#export-preset-values-btn");
 const importPresetValuesButton = document.querySelector("#import-preset-values-btn");
 const importPresetValuesFileInput = document.querySelector("#import-preset-values-file");
-const ornamentLongInput = document.querySelector("#ornament-long");
-const ornamentVibratoInput = document.querySelector("#ornament-vibrato");
-const ornamentBendInput = document.querySelector("#ornament-bend");
-const ornamentFallInput = document.querySelector("#ornament-fall");
-const ornamentPortamentoInput = document.querySelector("#ornament-portamento");
+const ruleLongNoteEInput = document.querySelector("#rule-long-note-e");
+const ruleLongNoteBInput = document.querySelector("#rule-long-note-b");
+const ruleLongLastPresetMelodiqueInput = document.querySelector("#rule-long-last-preset-melodique");
+const ruleFallLastNoteInput = document.querySelector("#rule-fall-last-note");
+const ruleFallInterval3Input = document.querySelector("#rule-fall-interval-3");
+const ruleBendFirstIf3Input = document.querySelector("#rule-bend-first-if-3");
+const ruleVibratoLongestInput = document.querySelector("#rule-vibrato-longest");
+const rulePortamentoBeforeLargestIntervalInput = document.querySelector("#rule-portamento-before-largest-interval");
 const generateButton = document.querySelector("#generate-btn");
 const replayButton = document.querySelector("#replay-btn");
 const statusLabel = document.querySelector("#status");
@@ -75,7 +71,19 @@ const resultInstrument = document.querySelector("#result-instrument");
 const resultPattern = document.querySelector("#result-pattern");
 const resultSequence = document.querySelector("#result-sequence");
 
-let ornaments = structuredClone(DEFAULT_SETTINGS.ornaments);
+const DEFAULT_ORNAMENT_RULES = {
+  longNoteE: false,
+  longNoteB: false,
+  longLastPresetMelodique: false,
+  fallLastNote: false,
+  fallInterval3: false,
+  bendFirstIf3: false,
+  vibratoLongest: false,
+  portamentoBeforeLargestInterval: false,
+};
+
+let ornamentRules = structuredClone(DEFAULT_ORNAMENT_RULES);
+let lastLoadedPresetName = null;
 const NOTE_LABELS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 const TONE_TO_PITCH_CLASS = {
   c: 0,
@@ -182,29 +190,38 @@ const midiToLabel = (midi) => {
 
 const midiToHz = (midi) => Number(Tone.Frequency(midi, "midi").toFrequency());
 
-const sanitizeOrnaments = (source) => ({
-  long: Boolean(source?.long),
-  vibrato: Boolean(source?.vibrato),
-  bend: Boolean(source?.bend),
-  fall: Boolean(source?.fall),
-  portamento: Boolean(source?.portamento),
+const sanitizeOrnamentRules = (source) => ({
+  longNoteE: Boolean(source?.longNoteE),
+  longNoteB: Boolean(source?.longNoteB),
+  longLastPresetMelodique: Boolean(source?.longLastPresetMelodique),
+  fallLastNote: Boolean(source?.fallLastNote),
+  fallInterval3: Boolean(source?.fallInterval3),
+  bendFirstIf3: Boolean(source?.bendFirstIf3),
+  vibratoLongest: Boolean(source?.vibratoLongest),
+  portamentoBeforeLargestInterval: Boolean(source?.portamentoBeforeLargestInterval),
 });
 
-const applyOrnamentsToInputs = () => {
-  ornamentLongInput.checked = ornaments.long;
-  ornamentVibratoInput.checked = ornaments.vibrato;
-  ornamentBendInput.checked = ornaments.bend;
-  ornamentFallInput.checked = ornaments.fall;
-  ornamentPortamentoInput.checked = ornaments.portamento;
+const applyOrnamentRulesToInputs = () => {
+  ruleLongNoteEInput.checked = ornamentRules.longNoteE;
+  ruleLongNoteBInput.checked = ornamentRules.longNoteB;
+  ruleLongLastPresetMelodiqueInput.checked = ornamentRules.longLastPresetMelodique;
+  ruleFallLastNoteInput.checked = ornamentRules.fallLastNote;
+  ruleFallInterval3Input.checked = ornamentRules.fallInterval3;
+  ruleBendFirstIf3Input.checked = ornamentRules.bendFirstIf3;
+  ruleVibratoLongestInput.checked = ornamentRules.vibratoLongest;
+  rulePortamentoBeforeLargestIntervalInput.checked = ornamentRules.portamentoBeforeLargestInterval;
 };
 
-const syncOrnamentsFromInputs = () => {
-  ornaments = {
-    long: ornamentLongInput.checked,
-    vibrato: ornamentVibratoInput.checked,
-    bend: ornamentBendInput.checked,
-    fall: ornamentFallInput.checked,
-    portamento: ornamentPortamentoInput.checked,
+const syncOrnamentRulesFromInputs = () => {
+  ornamentRules = {
+    longNoteE: ruleLongNoteEInput.checked,
+    longNoteB: ruleLongNoteBInput.checked,
+    longLastPresetMelodique: ruleLongLastPresetMelodiqueInput.checked,
+    fallLastNote: ruleFallLastNoteInput.checked,
+    fallInterval3: ruleFallInterval3Input.checked,
+    bendFirstIf3: ruleBendFirstIf3Input.checked,
+    vibratoLongest: ruleVibratoLongestInput.checked,
+    portamentoBeforeLargestInterval: rulePortamentoBeforeLargestIntervalInput.checked,
   };
 };
 
@@ -377,7 +394,7 @@ const setStatus = (message, isError = false) => {
 };
 
 const persistSettings = () => {
-  syncOrnamentsFromInputs();
+  syncOrnamentRulesFromInputs();
   const data = {
     primaryTones: primaryTonesInput.value,
     secondaryTones: secondaryTonesInput.value,
@@ -386,7 +403,8 @@ const persistSettings = () => {
     ambitusMax: ambitusMaxInput.value,
     instrument: instrumentSelect.value,
     rhythmSettings,
-    ornaments,
+    ornamentRules,
+    lastLoadedPresetName,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 };
@@ -401,9 +419,10 @@ const restoreSettings = () => {
     ambitusMaxInput.value = DEFAULT_SETTINGS.ambitusMax;
     instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
-    ornaments = structuredClone(DEFAULT_SETTINGS.ornaments);
+    ornamentRules = structuredClone(DEFAULT_ORNAMENT_RULES);
+    lastLoadedPresetName = null;
     applyRhythmSettingsToSliders();
-    applyOrnamentsToInputs();
+    applyOrnamentRulesToInputs();
     return;
   }
 
@@ -420,15 +439,17 @@ const restoreSettings = () => {
       instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     }
     rhythmSettings = sanitizeRhythmSettings(data.rhythmSettings ?? DEFAULT_RHYTHM_SETTINGS);
-    ornaments = sanitizeOrnaments(data.ornaments ?? DEFAULT_SETTINGS.ornaments);
+    ornamentRules = sanitizeOrnamentRules(data.ornamentRules ?? DEFAULT_ORNAMENT_RULES);
+    lastLoadedPresetName = typeof data.lastLoadedPresetName === "string" ? data.lastLoadedPresetName : null;
     applyRhythmSettingsToSliders();
-    applyOrnamentsToInputs();
+    applyOrnamentRulesToInputs();
   } catch {
     localStorage.removeItem(STORAGE_KEY);
     rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
-    ornaments = structuredClone(DEFAULT_SETTINGS.ornaments);
+    ornamentRules = structuredClone(DEFAULT_ORNAMENT_RULES);
+    lastLoadedPresetName = null;
     applyRhythmSettingsToSliders();
-    applyOrnamentsToInputs();
+    applyOrnamentRulesToInputs();
   }
 };
 
@@ -811,47 +832,103 @@ const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments) => {
     const nextMidi = midiSequence[index + 1] ?? null;
     const start = event.subdivisionOffset * subdivDur;
 
-    let duration = subdivDur;
-    if (activeOrnaments.long) {
-      duration = nextEvent
-        ? Math.max(0.06, (nextEvent.subdivisionOffset - event.subdivisionOffset) * subdivDur)
-        : 2 * subdivDur;
-    }
+    const naturalDuration = nextEvent
+      ? Math.max(0.06, (nextEvent.subdivisionOffset - event.subdivisionOffset) * subdivDur)
+      : 2 * subdivDur;
+    const duration = activeOrnaments.long ? naturalDuration : subdivDur;
 
     return {
       midi,
       nextMidi,
       start,
       duration,
+      naturalDuration,
     };
   });
 };
 
-const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
+const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
+  const perNote = timeline.map(() => ({ long: false, vibrato: false, bend: false, fall: false, portamento: false }));
+  const longestDuration = timeline.reduce((max, item) => Math.max(max, item.naturalDuration), 0);
+
+  let largestInterval = -1;
+  let largestIntervalIndex = -1;
+  for (let index = 0; index < midiSequence.length - 1; index += 1) {
+    const interval = Math.abs(midiSequence[index + 1] - midiSequence[index]);
+    if (interval > largestInterval) {
+      largestInterval = interval;
+      largestIntervalIndex = index;
+    }
+  }
+
+  timeline.forEach((item, index) => {
+    const midi = midiSequence[index];
+    const pitchClass = midi % 12;
+    const nextMidi = midiSequence[index + 1] ?? null;
+    const intervalToNext = nextMidi === null ? null : Math.abs(nextMidi - midi);
+
+    if (rules.longNoteE && pitchClass === 4) {
+      perNote[index].long = true;
+    }
+    if (rules.longNoteB && pitchClass === 11) {
+      perNote[index].long = true;
+    }
+    if (rules.longLastPresetMelodique && lastLoadedPresetName === "Mélodique") {
+      perNote[index].long = true;
+    }
+    if (rules.fallLastNote && index === timeline.length - 1) {
+      perNote[index].fall = true;
+    }
+    if (rules.fallInterval3 && intervalToNext !== null && intervalToNext >= 3) {
+      perNote[index].fall = true;
+    }
+    if (rules.bendFirstIf3 && index === 0 && timeline.length >= 3) {
+      perNote[index].bend = true;
+    }
+    if (rules.vibratoLongest && item.naturalDuration === longestDuration && longestDuration > 0) {
+      perNote[index].vibrato = true;
+    }
+    if (
+      rules.portamentoBeforeLargestInterval &&
+      index === largestIntervalIndex &&
+      largestIntervalIndex >= 0 &&
+      nextMidi !== null
+    ) {
+      const nextStart = timeline[index + 1]?.start ?? null;
+      if (nextStart !== null && item.naturalDuration >= nextStart - item.start) {
+        perNote[index].portamento = true;
+      }
+    }
+  });
+
+  return perNote;
+};
+
+const scheduleToneNote = (synth, timelineItem, noteOrnaments) => {
   const { midi, nextMidi, start, duration } = timelineItem;
   const baseFreq = midiToHz(midi);
   const end = start + duration;
   const bendStartFreq = baseFreq * centsToRatio(-200);
-  const noteStartFreq = activeOrnaments.bend ? bendStartFreq : baseFreq;
+  const noteStartFreq = noteOrnaments.bend ? bendStartFreq : baseFreq;
 
   synth.frequency.setValueAtTime(noteStartFreq, start);
 
-  if (activeOrnaments.bend) {
+  if (noteOrnaments.bend) {
     const bendRiseEnd = Math.min(end, start + Math.max(0.08, duration * 0.45));
     synth.frequency.linearRampToValueAtTime(baseFreq, bendRiseEnd);
   }
 
-  if (activeOrnaments.portamento && nextMidi !== null) {
+  if (noteOrnaments.portamento && nextMidi !== null) {
     const glideStart = Math.max(start, end - 0.15);
     synth.frequency.setValueAtTime(baseFreq, glideStart);
     synth.frequency.linearRampToValueAtTime(midiToHz(nextMidi), end);
-  } else if (activeOrnaments.fall) {
+  } else if (noteOrnaments.fall) {
     const fallStart = Math.max(start, end - 0.15);
     synth.frequency.setValueAtTime(baseFreq, fallStart);
     synth.frequency.linearRampToValueAtTime(baseFreq / 2, end);
   }
 
-  if (activeOrnaments.vibrato) {
+  if (noteOrnaments.vibrato) {
     const vibratoDelay = 0.15;
     const vibratoStart = Math.min(start + vibratoDelay, end);
     const vibratoDepth = baseFreq * (centsToRatio(50) - 1);
@@ -861,7 +938,7 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
     vibratoLfo.stop(end);
   }
 
-  if (activeOrnaments.bend) {
+  if (noteOrnaments.bend) {
     synth.triggerAttack(noteStartFreq, start, 0.8);
     synth.triggerRelease(end);
     return;
@@ -870,7 +947,7 @@ const scheduleToneNote = (synth, timelineItem, activeOrnaments) => {
   synth.triggerAttackRelease(baseFreq, duration, start, 0.8);
 };
 
-const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
+const playSequenceWithTone = async (midiSequence, rhythm, rules) => {
   await Tone.start();
   const startAt = Tone.now() + 0.05;
   const introSubdivisions = 8;
@@ -899,19 +976,20 @@ const playSequenceWithTone = async (midiSequence, rhythm, activeOrnaments) => {
     },
   }).toDestination();
 
-  const timeline = createPlayableTimeline(midiSequence, rhythm, activeOrnaments);
+  const timeline = createPlayableTimeline(midiSequence, rhythm, { long: false });
+  const noteOrnaments = resolveOrnamentsPerNote(timeline, midiSequence, rules);
   const backingTrackPlayer = await getBackingTrackPlayer();
   backingTrackPlayer.stop(startAt);
   backingTrackPlayer.start(backingTrackStartAt);
   const drumNodes = scheduleDrumsWithTone(startAt, rhythm, totalSequenceSubdivisions, introSubdivisions);
   for (let repeatIndex = 0; repeatIndex < sequenceRepeats; repeatIndex += 1) {
     const repeatOffset = (repeatIndex * sequenceLengthSubdivisions * 60) / (rhythm.bpm * 4);
-    timeline.forEach((item) => {
-      scheduleToneNote(
-        synth,
-        { ...item, start: melodyStartAt + repeatOffset + item.start },
-        activeOrnaments
-      );
+    timeline.forEach((item, index) => {
+      const mergedItem = { ...item, start: melodyStartAt + repeatOffset + item.start };
+      if (noteOrnaments[index].long) {
+        mergedItem.duration = item.naturalDuration;
+      }
+      scheduleToneNote(synth, mergedItem, noteOrnaments[index]);
     });
   }
 
@@ -1028,6 +1106,7 @@ const handleLoadPreset = () => {
   };
   applyRhythmSettingsToSliders();
   presetNameInput.value = name;
+  lastLoadedPresetName = name;
   persistSettings();
   setStatus(`Preset "${name}" chargé.`);
 };
@@ -1060,7 +1139,7 @@ const handleGenerate = async () => {
     const { minMidi, maxMidi } = parseInputs();
     const toneGroups = createToneGroups();
     syncRhythmSettingsFromSliders();
-    syncOrnamentsFromInputs();
+    syncOrnamentRulesFromInputs();
     const rhythm = createRhythmPattern(rhythmSettings);
     const noteCount = rhythm.noteEvents.length;
     const midiSequence = buildMelody(
@@ -1077,7 +1156,7 @@ const handleGenerate = async () => {
     resultSequence.textContent = labels.join(", ");
 
     persistSettings();
-    await playSequenceWithTone(midiSequence, rhythm, ornaments);
+    await playSequenceWithTone(midiSequence, rhythm, ornamentRules);
 
     lastGeneratedSequence = { midiSequence, rhythm };
     replayButton.disabled = false;
@@ -1102,11 +1181,11 @@ const handleReplay = async () => {
   setStatus("Replay de la dernière séquence…");
 
   try {
-    syncOrnamentsFromInputs();
+    syncOrnamentRulesFromInputs();
     await playSequenceWithTone(
       lastGeneratedSequence.midiSequence,
       lastGeneratedSequence.rhythm,
-      ornaments
+      ornamentRules
     );
     setStatus("Dernière séquence rejouée.");
   } catch (error) {
@@ -1158,14 +1237,17 @@ generateButton.addEventListener("click", handleGenerate);
 replayButton.addEventListener("click", handleReplay);
 
 [
-  ornamentLongInput,
-  ornamentVibratoInput,
-  ornamentBendInput,
-  ornamentFallInput,
-  ornamentPortamentoInput,
+  ruleLongNoteEInput,
+  ruleLongNoteBInput,
+  ruleLongLastPresetMelodiqueInput,
+  ruleFallLastNoteInput,
+  ruleFallInterval3Input,
+  ruleBendFirstIf3Input,
+  ruleVibratoLongestInput,
+  rulePortamentoBeforeLargestIntervalInput,
 ].forEach((input) => {
   input.addEventListener("change", () => {
-    syncOrnamentsFromInputs();
+    syncOrnamentRulesFromInputs();
     persistSettings();
   });
 });

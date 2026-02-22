@@ -179,14 +179,13 @@ textarea {
   flex-wrap: wrap;
 }
 
-.ornament-row {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+.ornament-rules {
+  display: grid;
+  gap: 8px;
   color: var(--muted);
 }
 
-.ornament-row label {
+.ornament-rules label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
