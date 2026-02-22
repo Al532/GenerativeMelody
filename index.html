@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=40">
+  <link rel="stylesheet" href="styles.css?v=43">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <p class="site-version">Version du site&nbsp;: v40</p>
+  <p class="site-version">Version du site&nbsp;: v43</p>
   <header class="hero">
     <div>
       <p class="eyebrow">Prototype</p>
       <h1>Générateur de mélodie</h1>
       <p class="lead">
-        Configurez les paramètres, générez une mélodie contrainte par les règles A/B/C/E, puis écoutez la séquence avec l’instrument sélectionné.
+        Configurez les paramètres, générez une mélodie contrainte par les règles A/B/C/D, puis écoutez la séquence.
       </p>
     </div>
   </header>
@@ -33,8 +33,13 @@
           <textarea id="secondary-tones" rows="2" placeholder="Ex: d, f#, a">f#, a, c, d</textarea>
         </label>
 
+        <label class="field" for="approach-tones">
+          <span>Approach tones (C)</span>
+          <textarea id="approach-tones" rows="2" placeholder="Ex: c, d#, f">c, d#, f, g, a#</textarea>
+        </label>
+
         <label class="field" for="forbidden-tones">
-          <span>Forbidden tones (C)</span>
+          <span>Forbidden tones (D)</span>
           <textarea id="forbidden-tones" rows="2" placeholder="Ex: db, gb, bb">g#, c#</textarea>
         </label>
 
@@ -48,10 +53,31 @@
           <input id="ambitus-max" type="number" min="0" max="127" step="1" value="72">
         </label>
 
-        <label class="field" for="instrument-select">
-          <span>Instrument</span>
-          <select id="instrument-select"></select>
+        <label class="field" for="tonic-select">
+          <span>Tonique de transposition</span>
+          <select id="tonic-select">
+            <option value="c">C</option>
+            <option value="c#">C# / Db</option>
+            <option value="d">D</option>
+            <option value="d#">D# / Eb</option>
+            <option value="e">E</option>
+            <option value="f">F</option>
+            <option value="f#">F# / Gb</option>
+            <option value="g">G</option>
+            <option value="g#">G# / Ab</option>
+            <option value="a">A</option>
+            <option value="a#">A# / Bb</option>
+            <option value="b">B</option>
+          </select>
         </label>
+      </div>
+
+      <div class="preset-row">
+        <input id="note-preset-name" type="text" placeholder="Nom du preset de catégories">
+        <button id="save-note-preset-btn" type="button">Sauvegarder preset</button>
+        <select id="note-preset-select"></select>
+        <button id="load-note-preset-btn" type="button">Charger</button>
+        <button id="delete-note-preset-btn" type="button">Effacer</button>
       </div>
 
       <h3>Probabilités rythmiques</h3>
@@ -93,7 +119,7 @@
 
       <h3>Règles d’ornements (par note)</h3>
       <div class="ornament-rules" id="ornament-rules">
-        <label><input id="rule-long-note-e" type="checkbox"> Long → note de catégorie E, si non répétée</label>
+        <label><input id="rule-long-note-e" type="checkbox"> Long → note de catégorie C, si non répétée</label>
         <label><input id="rule-long-note-b" type="checkbox"> Long → note de catégorie B, si non répétée</label>
         <label><input id="rule-long-last-preset-melodique" type="checkbox"> Long → toutes les notes si dernier preset chargé = «&nbsp;Mélodique&nbsp;»</label>
         <label><input id="rule-no-long-last-preset-syncope" type="checkbox"> Long → désactivé si dernier preset chargé = «&nbsp;Syncopé&nbsp;»</label>
@@ -158,10 +184,10 @@
   </main>
 
   <footer>
-    <p>Version prototype v40: vibrato ± 1/2 ton et réglages monosynth exposés en interface.</p>
+    <p>Version prototype v43: catégories A/B/C/D et complétion auto des presets.</p>
   </footer>
 
-  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js?v=40"></script>
-  <script type="module" src="main.js?v=40"></script>
+  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js?v=43"></script>
+  <script type="module" src="main.js?v=43"></script>
 </body>
 </html>

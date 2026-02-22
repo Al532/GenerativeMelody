@@ -1,12 +1,11 @@
-import { instruments } from "./assets.js";
-
 const STORAGE_KEY = "melody-prototype-settings-v3";
 const RHYTHM_PRESETS_KEY = "melody-prototype-rhythm-presets-v1";
+const NOTE_CATEGORY_PRESETS_KEY = "melody-prototype-note-category-presets-v1";
 const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
 const FORBIDDEN_DESCENDING_LEAP_SEMITONES = new Set([-10]);
 const FORBIDDEN_BIDIRECTIONAL_LEAP_SEMITONES = new Set([11]);
 const MAX_B_TO_A_LEAP_SEMITONES = 2;
-const MAX_E_TO_AB_LEAP_SEMITONES = 1;
+const MAX_C_TO_AB_LEAP_SEMITONES = 1;
 const MAX_SEQUENCE_RANGE_SEMITONES = 14;
 const DEFAULT_REPETITION_PROBABILITY_FACTOR = 0.25;
 const BACKING_TRACK_URL = "music.mp3";
@@ -29,10 +28,11 @@ const DEFAULT_RHYTHM_SETTINGS = {
 const DEFAULT_SETTINGS = {
   primaryTones: "e, g, b",
   secondaryTones: "f#, a, c, d",
+  approachTones: "c, d#, f, g, a#",
   forbiddenTones: "g#, c#",
   ambitusMin: "50",
   ambitusMax: "72",
-  instrument: "Piano",
+  tonic: "c",
 };
 const DEFAULT_MONOSYNTH_SETTINGS = {
   envelopeAttack: 0.005,
@@ -69,10 +69,11 @@ const ORNAMENT_ENGINE_CONFIG = {
 
 const primaryTonesInput = document.querySelector("#primary-tones");
 const secondaryTonesInput = document.querySelector("#secondary-tones");
+const approachTonesInput = document.querySelector("#approach-tones");
 const forbiddenTonesInput = document.querySelector("#forbidden-tones");
 const ambitusMinInput = document.querySelector("#ambitus-min");
 const ambitusMaxInput = document.querySelector("#ambitus-max");
-const instrumentSelect = document.querySelector("#instrument-select");
+const tonicSelect = document.querySelector("#tonic-select");
 const bpmSlider = document.querySelector("#bpm-slider");
 const bpmValue = document.querySelector("#bpm-value");
 const repetitionPenaltySlider = document.querySelector("#repetition-penalty-slider");
@@ -96,6 +97,12 @@ const monoFilterEnvelopeOctavesValue = document.querySelector("#mono-filter-env-
 const jumpSlidersContainer = document.querySelector("#jump-sliders");
 const tripletSlidersContainer = document.querySelector("#triplet-sliders");
 const afterTripletSlidersContainer = document.querySelector("#after-triplet-sliders");
+const notePresetNameInput = document.querySelector("#note-preset-name");
+const notePresetSelect = document.querySelector("#note-preset-select");
+const saveNotePresetButton = document.querySelector("#save-note-preset-btn");
+const loadNotePresetButton = document.querySelector("#load-note-preset-btn");
+const deleteNotePresetButton = document.querySelector("#delete-note-preset-btn");
+
 const presetNameInput = document.querySelector("#preset-name");
 const presetSelect = document.querySelector("#preset-select");
 const savePresetButton = document.querySelector("#save-preset-btn");
@@ -159,6 +166,8 @@ const TONE_TO_PITCH_CLASS = {
   b: 11,
   cb: 11,
 };
+
+const PITCH_CLASS_TO_TONE = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"];
 
 const JUMP_KEYS = [
   { key: "jump1", label: "Jump +1" },
@@ -250,10 +259,13 @@ const getPitchClassCategory = (toneGroups, midi) => {
   if (toneGroups.secondary.has(pitchClass)) {
     return "B";
   }
-  if (toneGroups.forbidden.has(pitchClass)) {
+  if (toneGroups.approach.has(pitchClass)) {
     return "C";
   }
-  return "E";
+  if (toneGroups.forbidden.has(pitchClass)) {
+    return "D";
+  }
+  return null;
 };
 
 const sanitizeOrnamentRules = (source) => ({
@@ -525,10 +537,11 @@ const persistSettings = () => {
   const data = {
     primaryTones: primaryTonesInput.value,
     secondaryTones: secondaryTonesInput.value,
+    approachTones: approachTonesInput.value,
     forbiddenTones: forbiddenTonesInput.value,
     ambitusMin: ambitusMinInput.value,
     ambitusMax: ambitusMaxInput.value,
-    instrument: instrumentSelect.value,
+    tonic: tonicSelect.value,
     rhythmSettings,
     monosynthSettings,
     ornamentRules,
@@ -542,10 +555,11 @@ const restoreSettings = () => {
   if (!raw) {
     primaryTonesInput.value = DEFAULT_SETTINGS.primaryTones;
     secondaryTonesInput.value = DEFAULT_SETTINGS.secondaryTones;
+    approachTonesInput.value = DEFAULT_SETTINGS.approachTones;
     forbiddenTonesInput.value = DEFAULT_SETTINGS.forbiddenTones;
     ambitusMinInput.value = DEFAULT_SETTINGS.ambitusMin;
     ambitusMaxInput.value = DEFAULT_SETTINGS.ambitusMax;
-    instrumentSelect.value = DEFAULT_SETTINGS.instrument;
+    tonicSelect.value = DEFAULT_SETTINGS.tonic;
     rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
     monosynthSettings = structuredClone(DEFAULT_MONOSYNTH_SETTINGS);
     ornamentRules = structuredClone(DEFAULT_ORNAMENT_RULES);
@@ -560,13 +574,14 @@ const restoreSettings = () => {
     const data = JSON.parse(raw);
     primaryTonesInput.value = data.primaryTones ?? DEFAULT_SETTINGS.primaryTones;
     secondaryTonesInput.value = data.secondaryTones ?? DEFAULT_SETTINGS.secondaryTones;
+    approachTonesInput.value = data.approachTones ?? DEFAULT_SETTINGS.approachTones;
     forbiddenTonesInput.value = data.forbiddenTones ?? DEFAULT_SETTINGS.forbiddenTones;
     ambitusMinInput.value = data.ambitusMin ?? DEFAULT_SETTINGS.ambitusMin;
     ambitusMaxInput.value = data.ambitusMax ?? DEFAULT_SETTINGS.ambitusMax;
-    if (data.instrument && instruments.includes(data.instrument)) {
-      instrumentSelect.value = data.instrument;
+    if (typeof data.tonic === "string" && TONE_TO_PITCH_CLASS[data.tonic] !== undefined) {
+      tonicSelect.value = data.tonic;
     } else {
-      instrumentSelect.value = DEFAULT_SETTINGS.instrument;
+      tonicSelect.value = DEFAULT_SETTINGS.tonic;
     }
     rhythmSettings = sanitizeRhythmSettings(data.rhythmSettings ?? DEFAULT_RHYTHM_SETTINGS);
     monosynthSettings = sanitizeMonosynthSettings(data.monosynthSettings ?? DEFAULT_MONOSYNTH_SETTINGS);
@@ -581,6 +596,7 @@ const restoreSettings = () => {
     monosynthSettings = structuredClone(DEFAULT_MONOSYNTH_SETTINGS);
     ornamentRules = structuredClone(DEFAULT_ORNAMENT_RULES);
     lastLoadedPresetName = null;
+    tonicSelect.value = DEFAULT_SETTINGS.tonic;
     applyRhythmSettingsToSliders();
     applyMonosynthSettingsToInputs();
     applyOrnamentRulesToInputs();
@@ -606,6 +622,32 @@ const saveRhythmPresets = (presets) => {
   localStorage.setItem(RHYTHM_PRESETS_KEY, JSON.stringify(presets));
 };
 
+const sanitizeNoteCategoryPreset = (source) => ({
+  primaryTones: String(source?.primaryTones ?? DEFAULT_SETTINGS.primaryTones),
+  secondaryTones: String(source?.secondaryTones ?? DEFAULT_SETTINGS.secondaryTones),
+  approachTones: String(source?.approachTones ?? DEFAULT_SETTINGS.approachTones),
+  forbiddenTones: String(source?.forbiddenTones ?? DEFAULT_SETTINGS.forbiddenTones),
+});
+
+const getNoteCategoryPresets = () => {
+  const raw = localStorage.getItem(NOTE_CATEGORY_PRESETS_KEY);
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    const data = JSON.parse(raw);
+    return typeof data === "object" && data ? data : {};
+  } catch {
+    localStorage.removeItem(NOTE_CATEGORY_PRESETS_KEY);
+    return {};
+  }
+};
+
+const saveNoteCategoryPresets = (presets) => {
+  localStorage.setItem(NOTE_CATEGORY_PRESETS_KEY, JSON.stringify(presets));
+};
+
 const refreshPresetSelect = () => {
   const presets = getRhythmPresets();
   const names = Object.keys(presets).sort((a, b) => a.localeCompare(b, "fr"));
@@ -619,11 +661,137 @@ const refreshPresetSelect = () => {
   });
 };
 
-const populateInstrumentSelect = () => {
-  const options = instruments
-    .map((instrument) => `<option value="${instrument}">${instrument}</option>`)
-    .join("");
-  instrumentSelect.innerHTML = options;
+const refreshNotePresetSelect = () => {
+  const presets = getNoteCategoryPresets();
+  const names = Object.keys(presets).sort((a, b) => a.localeCompare(b, "fr"));
+
+  notePresetSelect.innerHTML = '<option value="">Preset catégories…</option>';
+  names.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    notePresetSelect.append(option);
+  });
+};
+
+
+const normalizeNoteCategoriesForPreset = () => {
+  const fields = [
+    { key: "primaryTones", label: "Primary tones", raw: primaryTonesInput.value },
+    { key: "secondaryTones", label: "Secondary tones", raw: secondaryTonesInput.value },
+    { key: "approachTones", label: "Approach tones", raw: approachTonesInput.value },
+    { key: "forbiddenTones", label: "Forbidden tones", raw: forbiddenTonesInput.value },
+  ];
+
+  const parsed = fields.map((field) => ({
+    ...field,
+    isEmpty: field.raw.trim().length === 0,
+    set: field.raw.trim().length === 0 ? new Set() : parseToneClasses(field.raw, field.label),
+  }));
+
+  const assigned = new Map();
+  parsed.forEach((field) => {
+    if (field.isEmpty) {
+      return;
+    }
+    for (const pitchClass of field.set) {
+      if (assigned.has(pitchClass)) {
+        throw new Error(`La note ${PITCH_CLASS_TO_TONE[pitchClass]} est dupliquée entre catégories.`);
+      }
+      assigned.set(pitchClass, field.key);
+    }
+  });
+
+  const remaining = PITCH_CLASS_TO_TONE
+    .map((_, pitchClass) => pitchClass)
+    .filter((pitchClass) => !assigned.has(pitchClass));
+
+  const emptyFields = parsed.filter((field) => field.isEmpty);
+  if (emptyFields.length > 0) {
+    remaining.forEach((pitchClass, index) => {
+      emptyFields[index % emptyFields.length].set.add(pitchClass);
+    });
+  } else if (remaining.length > 0) {
+    throw new Error("Les 12 notes doivent être représentées une fois (laissez au moins un champ vide pour auto-compléter).");
+  }
+
+  const toText = (set) => [...set]
+    .sort((a, b) => a - b)
+    .map((pitchClass) => PITCH_CLASS_TO_TONE[pitchClass])
+    .join(", ");
+
+  return {
+    primaryTones: toText(parsed[0].set),
+    secondaryTones: toText(parsed[1].set),
+    approachTones: toText(parsed[2].set),
+    forbiddenTones: toText(parsed[3].set),
+  };
+};
+
+const handleSaveNotePreset = () => {
+  const name = notePresetNameInput.value.trim();
+  if (!name) {
+    setStatus("Donnez un nom de preset de catégories.", true);
+    return;
+  }
+
+  const normalized = normalizeNoteCategoriesForPreset();
+  primaryTonesInput.value = normalized.primaryTones;
+  secondaryTonesInput.value = normalized.secondaryTones;
+  approachTonesInput.value = normalized.approachTones;
+  forbiddenTonesInput.value = normalized.forbiddenTones;
+
+  const presets = getNoteCategoryPresets();
+  presets[name] = sanitizeNoteCategoryPreset(normalized);
+  saveNoteCategoryPresets(presets);
+  refreshNotePresetSelect();
+  notePresetSelect.value = name;
+  setStatus(`Preset catégories "${name}" sauvegardé.`);
+};
+
+const handleLoadNotePreset = () => {
+  const name = notePresetSelect.value;
+  if (!name) {
+    setStatus("Choisissez un preset de catégories à charger.", true);
+    return;
+  }
+
+  const presets = getNoteCategoryPresets();
+  const selected = presets[name];
+  if (!selected) {
+    setStatus("Preset catégories introuvable.", true);
+    refreshNotePresetSelect();
+    return;
+  }
+
+  const sanitized = sanitizeNoteCategoryPreset(selected);
+  primaryTonesInput.value = sanitized.primaryTones;
+  secondaryTonesInput.value = sanitized.secondaryTones;
+  approachTonesInput.value = sanitized.approachTones;
+  forbiddenTonesInput.value = sanitized.forbiddenTones;
+  notePresetNameInput.value = name;
+  persistSettings();
+  setStatus(`Preset catégories "${name}" chargé.`);
+};
+
+const handleDeleteNotePreset = () => {
+  const name = notePresetSelect.value;
+  if (!name) {
+    setStatus("Choisissez un preset de catégories à effacer.", true);
+    return;
+  }
+
+  const presets = getNoteCategoryPresets();
+  if (!presets[name]) {
+    setStatus("Preset catégories introuvable.", true);
+    refreshNotePresetSelect();
+    return;
+  }
+
+  delete presets[name];
+  saveNoteCategoryPresets(presets);
+  refreshNotePresetSelect();
+  setStatus(`Preset catégories "${name}" effacé.`);
 };
 
 const parseToneClasses = (raw, label) => {
@@ -646,23 +814,39 @@ const parseToneClasses = (raw, label) => {
 };
 
 const createToneGroups = () => {
+  const tonicPitchClass = TONE_TO_PITCH_CLASS[tonicSelect.value] ?? 0;
   const primary = parseToneClasses(primaryTonesInput.value, "Primary tones");
   const secondary = parseToneClasses(secondaryTonesInput.value, "Secondary tones");
+  const approach = parseToneClasses(approachTonesInput.value, "Approach tones");
   const forbidden = parseToneClasses(forbiddenTonesInput.value, "Forbidden tones");
 
-  for (const pitchClass of primary) {
-    if (secondary.has(pitchClass) || forbidden.has(pitchClass)) {
-      throw new Error("Une note ne peut pas être à la fois primary et secondary/forbidden.");
+  const categories = [
+    { key: "A", label: "primary", values: primary },
+    { key: "B", label: "secondary", values: secondary },
+    { key: "C", label: "approach", values: approach },
+    { key: "D", label: "forbidden", values: forbidden },
+  ];
+
+  const assigned = new Map();
+  for (const category of categories) {
+    for (const pitchClass of category.values) {
+      const existing = assigned.get(pitchClass);
+      if (existing) {
+        throw new Error(`La note ${pitchClass} est définie dans plusieurs catégories (${existing} et ${category.label}).`);
+      }
+      assigned.set(pitchClass, category.label);
     }
   }
 
-  for (const pitchClass of secondary) {
-    if (forbidden.has(pitchClass)) {
-      throw new Error("Une note ne peut pas être à la fois secondary et forbidden.");
-    }
-  }
+  const transposeToAbsolute = (values) =>
+    new Set(Array.from(values, (pitchClass) => (pitchClass + tonicPitchClass) % 12));
 
-  return { primary, secondary, forbidden };
+  return {
+    primary: transposeToAbsolute(primary),
+    secondary: transposeToAbsolute(secondary),
+    approach: transposeToAbsolute(approach),
+    forbidden: transposeToAbsolute(forbidden),
+  };
 };
 
 const parseInputs = () => {
@@ -784,7 +968,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
     }
 
     if (prevCategory === "A") {
-      return currentCategory === "A" || currentCategory === "B" || currentCategory === "E";
+      return currentCategory === "A" || currentCategory === "B" || currentCategory === "C";
     }
 
     if (prevCategory === "B") {
@@ -794,8 +978,8 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
       return currentCategory === "A" && leap <= MAX_B_TO_A_LEAP_SEMITONES;
     }
 
-    if (prevCategory === "E") {
-      return (currentCategory === "A" || currentCategory === "B") && leap <= MAX_E_TO_AB_LEAP_SEMITONES;
+    if (prevCategory === "C") {
+      return (currentCategory === "A" || currentCategory === "B") && leap <= MAX_C_TO_AB_LEAP_SEMITONES;
     }
 
     return false;
@@ -804,13 +988,13 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
   const playable = [];
   for (let midi = minMidi; midi <= maxMidi; midi += 1) {
     const category = getPitchClassCategory(toneGroups, midi);
-    if (category !== "C") {
+    if (category && category !== "D") {
       playable.push({ midi, category });
     }
   }
 
   if (playable.length === 0) {
-    throw new Error("Aucune note disponible après exclusion des forbidden tones.");
+    throw new Error("Aucune note disponible après exclusion des forbidden tones (D).");
   }
 
   const failureMemo = new Set();
@@ -1015,7 +1199,7 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
       : nextSubdivisionOffset - item.subdivisionOffset;
     const isRepeatedWithNeighbor = repeatedRunIndices.has(index);
 
-    if (!isRepeatedWithNeighbor && rules.longNoteE && category === "E") {
+    if (!isRepeatedWithNeighbor && rules.longNoteE && category === "C") {
       perNote[index].long = true;
     }
     if (!isRepeatedWithNeighbor && rules.longNoteB && category === "B") {
@@ -1346,7 +1530,7 @@ const handleGenerate = async () => {
     );
     const labels = midiSequence.map(midiToLabel);
 
-    resultInstrument.textContent = "Sawtooth (Tone.js)";
+    resultInstrument.textContent = `Sawtooth (Tone.js), tonique ${tonicSelect.value.toUpperCase()}`;
     resultPattern.textContent = formatPatternForDisplay(rhythm.grid, rhythm.tripletStarts);
     resultSequence.textContent = labels.join(", ");
     resultVibratoConditions.textContent = getVibratoConditionsDescription(ornamentRules);
@@ -1395,10 +1579,10 @@ const handleReplay = async () => {
   }
 };
 
-populateInstrumentSelect();
 initializeRhythmSliders();
 restoreSettings();
 refreshPresetSelect();
+refreshNotePresetSelect();
 persistSettings();
 resultVibratoConditions.textContent = getVibratoConditionsDescription(ornamentRules);
 
@@ -1417,10 +1601,11 @@ repetitionPenaltySlider.addEventListener("input", () => {
 [
   primaryTonesInput,
   secondaryTonesInput,
+  approachTonesInput,
   forbiddenTonesInput,
   ambitusMinInput,
   ambitusMaxInput,
-  instrumentSelect,
+  tonicSelect,
 ].forEach((element) => {
   element.addEventListener("input", persistSettings);
   element.addEventListener("change", persistSettings);
@@ -1442,6 +1627,10 @@ repetitionPenaltySlider.addEventListener("input", () => {
     persistSettings();
   });
 });
+
+saveNotePresetButton.addEventListener("click", handleSaveNotePreset);
+loadNotePresetButton.addEventListener("click", handleLoadNotePreset);
+deleteNotePresetButton.addEventListener("click", handleDeleteNotePreset);
 
 savePresetButton.addEventListener("click", handleSavePreset);
 loadPresetButton.addEventListener("click", handleLoadPreset);
