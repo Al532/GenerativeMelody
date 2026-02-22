@@ -896,7 +896,13 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
     if (rules.bendFirstIf3 && index === 0 && distanceToNextSixteenth !== null && distanceToNextSixteenth >= 3) {
       perNote[index].bend = true;
     }
-    if (rules.vibratoLongest && item.naturalDuration === longestDuration && longestDuration > 0) {
+    if (
+      rules.vibratoLongest &&
+      item.naturalDuration === longestDuration &&
+      longestDuration > 0 &&
+      perNote[index].long &&
+      !perNote[index].bend
+    ) {
       perNote[index].vibrato = true;
     }
     if (
@@ -934,7 +940,7 @@ const scheduleToneNote = (synth, timelineItem, noteOrnaments) => {
     synth.frequency.setValueAtTime(baseFreq, glideStart);
     synth.frequency.linearRampToValueAtTime(midiToHz(nextMidi), end);
   } else if (noteOrnaments.fall) {
-    const fallStart = Math.max(start, end - 0.15);
+    const fallStart = start + duration / 2;
     synth.frequency.setValueAtTime(baseFreq, fallStart);
     synth.frequency.linearRampToValueAtTime(baseFreq / 2, end);
   }
