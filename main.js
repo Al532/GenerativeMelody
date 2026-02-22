@@ -852,6 +852,7 @@ const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments, toneGroup
 const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
   const perNote = timeline.map(() => ({ long: false, vibrato: false, bend: false, fall: false, portamento: false }));
   const longestDuration = timeline.reduce((max, item) => Math.max(max, item.naturalDuration), 0);
+  const fallIntervalCandidates = [];
 
   let largestInterval = -1;
   let largestIntervalIndex = -1;
@@ -881,9 +882,6 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
     if (rules.longLastPresetMelodique && lastLoadedPresetName === "Mélodique") {
       perNote[index].long = true;
     }
-    if (rules.fallLastNote && index === timeline.length - 1) {
-      perNote[index].fall = true;
-    }
     if (
       rules.fallInterval3 &&
       item.category === "A" &&
@@ -891,7 +889,7 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
       distanceToNextSixteenth !== null &&
       distanceToNextSixteenth >= 3
     ) {
-      perNote[index].fall = true;
+      fallIntervalCandidates.push(index);
     }
     if (rules.bendFirstIf3 && index === 0 && distanceToNextSixteenth !== null && distanceToNextSixteenth >= 3) {
       perNote[index].bend = true;
@@ -918,6 +916,14 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
       }
     }
   });
+
+  if (fallIntervalCandidates.length > 0) {
+    const randomCandidateIndex = Math.floor(Math.random() * fallIntervalCandidates.length);
+    const selectedIndex = fallIntervalCandidates[randomCandidateIndex];
+    perNote[selectedIndex].fall = true;
+  } else if (rules.fallLastNote && timeline.length > 0) {
+    perNote[timeline.length - 1].fall = true;
+  }
 
   return perNote;
 };
