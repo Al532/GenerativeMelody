@@ -756,10 +756,8 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
     if (prevPrevMidi !== null) {
       const previousDirection = prevMidi - prevPrevMidi;
       const currentDirection = currentMidi - prevMidi;
-      const hasSemitoneMove = Math.abs(previousDirection) === 1;
-      const reversedDirection = previousDirection * currentDirection < 0;
-      const reverseStepOrTone = Math.abs(currentDirection) <= 2;
-      if (hasSemitoneMove && reversedDirection && reverseStepOrTone) {
+      const isDescendingReturnedChromatic = previousDirection === -1 && currentDirection === 2;
+      if (isDescendingReturnedChromatic) {
         return false;
       }
     }
@@ -799,6 +797,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
   const categories = [];
   let sequenceMin = Infinity;
   let sequenceMax = -Infinity;
+  let requiresNextDescendingMotion = false;
 
   const search = (index) => {
     if (index === noteCount) {
@@ -810,7 +809,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
     const prevMidi = index > 0 ? sequence[index - 1] : null;
     const prevCategory = index > 0 ? categories[index - 1] : null;
 
-    const stateKey = `${index}|${prevMidi ?? "_"}|${prevCategory ?? "_"}|${sequenceMin}|${sequenceMax}`;
+    const stateKey = `${index}|${prevMidi ?? "_"}|${prevCategory ?? "_"}|${sequenceMin}|${sequenceMax}|${requiresNextDescendingMotion}`;
     if (failureMemo.has(stateKey)) {
       return false;
     }
@@ -830,6 +829,10 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
         continue;
       }
 
+      if (requiresNextDescendingMotion && index > 0 && midi >= prevMidi) {
+        continue;
+      }
+
       const nextMin = Math.min(sequenceMin, midi);
       const nextMax = Math.max(sequenceMax, midi);
       if (nextMax - nextMin > MAX_SEQUENCE_RANGE_SEMITONES) {
@@ -838,6 +841,15 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
 
       const previousMin = sequenceMin;
       const previousMax = sequenceMax;
+      const previousRequiresNextDescendingMotion = requiresNextDescendingMotion;
+      if (index > 1) {
+        const previousDirection = prevMidi - prevPrevMidi;
+        const currentDirection = midi - prevMidi;
+        const isAscendingReturnedChromatic = previousDirection === 1 && currentDirection === -2;
+        requiresNextDescendingMotion = isAscendingReturnedChromatic;
+      } else {
+        requiresNextDescendingMotion = false;
+      }
 
       sequence.push(midi);
       categories.push(category);
@@ -852,6 +864,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
       categories.pop();
       sequenceMin = previousMin;
       sequenceMax = previousMax;
+      requiresNextDescendingMotion = previousRequiresNextDescendingMotion;
     }
 
     failureMemo.add(stateKey);
