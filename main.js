@@ -864,19 +864,28 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
     }
   }
 
+  const repeatedRunIndices = new Set();
+  for (let index = 1; index < midiSequence.length; index += 1) {
+    if (midiSequence[index] === midiSequence[index - 1]) {
+      repeatedRunIndices.add(index - 1);
+      repeatedRunIndices.add(index);
+    }
+  }
+
   timeline.forEach((item, index) => {
     const midi = midiSequence[index];
-    const pitchClass = midi % 12;
+    const category = item.category;
     const nextMidi = midiSequence[index + 1] ?? null;
     const nextSubdivisionOffset = timeline[index + 1]?.subdivisionOffset ?? null;
     const distanceToNextSixteenth = nextSubdivisionOffset === null
       ? null
       : nextSubdivisionOffset - item.subdivisionOffset;
+    const isRepeatedWithNeighbor = repeatedRunIndices.has(index);
 
-    if (rules.longNoteE && pitchClass === 4) {
+    if (!isRepeatedWithNeighbor && rules.longNoteE && category === "E") {
       perNote[index].long = true;
     }
-    if (rules.longNoteB && pitchClass === 11) {
+    if (!isRepeatedWithNeighbor && rules.longNoteB && category === "B") {
       perNote[index].long = true;
     }
     if (rules.longLastPresetMelodique && lastLoadedPresetName === "Mélodique") {
