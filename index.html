@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=30">
+  <link rel="stylesheet" href="styles.css?v=31">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <p class="site-version">Version du site&nbsp;: v30</p>
+  <p class="site-version">Version du site&nbsp;: v31</p>
   <header class="hero">
     <div>
       <p class="eyebrow">Prototype</p>
@@ -97,8 +97,8 @@
         <label><input id="rule-long-note-b" type="checkbox"> Long → note B</label>
         <label><input id="rule-long-last-preset-melodique" type="checkbox"> Long → toutes les notes si dernier preset chargé = «&nbsp;Mélodique&nbsp;»</label>
         <label><input id="rule-fall-last-note" type="checkbox"> Fall → dernière note</label>
-        <label><input id="rule-fall-interval-3" type="checkbox"> Fall → note distante d’au moins 3 demi-tons avec la suivante</label>
-        <label><input id="rule-bend-first-if-3" type="checkbox"> Bend → première note si la série a au moins 3 notes</label>
+        <label><input id="rule-fall-interval-3" type="checkbox"> Fall → note de catégorie A, pas « long », et distante d’au moins 3 double-croches avec la suivante</label>
+        <label><input id="rule-bend-first-if-3" type="checkbox"> Bend → première note si sa longueur est d’au moins 3 double-croches</label>
         <label><input id="rule-vibrato-longest" type="checkbox"> Vibrato → note la plus longue de la série</label>
         <label><input id="rule-portamento-before-largest-interval" type="checkbox"> Portamento → note avant le plus grand intervalle (si elle tient jusqu’à la suivante)</label>
       </div>
@@ -120,10 +120,10 @@
   </main>
 
   <footer>
-    <p>Version prototype v30: règles d’ornements activables par condition note-à-note.</p>
+    <p>Version prototype v31: règles d’ornements activables par condition note-à-note.</p>
   </footer>
 
-  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js?v=30"></script>
-  <script type="module" src="main.js?v=30"></script>
+  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js?v=31"></script>
+  <script type="module" src="main.js?v=31"></script>
 </body>
 </html>
