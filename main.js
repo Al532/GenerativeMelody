@@ -59,6 +59,7 @@ const importPresetValuesFileInput = document.querySelector("#import-preset-value
 const ruleLongNoteEInput = document.querySelector("#rule-long-note-e");
 const ruleLongNoteBInput = document.querySelector("#rule-long-note-b");
 const ruleLongLastPresetMelodiqueInput = document.querySelector("#rule-long-last-preset-melodique");
+const ruleNoLongLastPresetSyncopeInput = document.querySelector("#rule-no-long-last-preset-syncope");
 const ruleFallLastNoteInput = document.querySelector("#rule-fall-last-note");
 const ruleFallInterval3Input = document.querySelector("#rule-fall-interval-3");
 const ruleBendFirstIf3Input = document.querySelector("#rule-bend-first-if-3");
@@ -75,6 +76,7 @@ const DEFAULT_ORNAMENT_RULES = {
   longNoteE: false,
   longNoteB: false,
   longLastPresetMelodique: false,
+  noLongLastPresetSyncope: false,
   fallLastNote: false,
   fallInterval3: false,
   bendFirstIf3: false,
@@ -208,6 +210,7 @@ const sanitizeOrnamentRules = (source) => ({
   longNoteE: Boolean(source?.longNoteE),
   longNoteB: Boolean(source?.longNoteB),
   longLastPresetMelodique: Boolean(source?.longLastPresetMelodique),
+  noLongLastPresetSyncope: Boolean(source?.noLongLastPresetSyncope),
   fallLastNote: Boolean(source?.fallLastNote),
   fallInterval3: Boolean(source?.fallInterval3),
   bendFirstIf3: Boolean(source?.bendFirstIf3),
@@ -219,6 +222,7 @@ const applyOrnamentRulesToInputs = () => {
   ruleLongNoteEInput.checked = ornamentRules.longNoteE;
   ruleLongNoteBInput.checked = ornamentRules.longNoteB;
   ruleLongLastPresetMelodiqueInput.checked = ornamentRules.longLastPresetMelodique;
+  ruleNoLongLastPresetSyncopeInput.checked = ornamentRules.noLongLastPresetSyncope;
   ruleFallLastNoteInput.checked = ornamentRules.fallLastNote;
   ruleFallInterval3Input.checked = ornamentRules.fallInterval3;
   ruleBendFirstIf3Input.checked = ornamentRules.bendFirstIf3;
@@ -231,6 +235,7 @@ const syncOrnamentRulesFromInputs = () => {
     longNoteE: ruleLongNoteEInput.checked,
     longNoteB: ruleLongNoteBInput.checked,
     longLastPresetMelodique: ruleLongLastPresetMelodiqueInput.checked,
+    noLongLastPresetSyncope: ruleNoLongLastPresetSyncopeInput.checked,
     fallLastNote: ruleFallLastNoteInput.checked,
     fallInterval3: ruleFallInterval3Input.checked,
     bendFirstIf3: ruleBendFirstIf3Input.checked,
@@ -890,6 +895,9 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
     }
     if (rules.longLastPresetMelodique && lastLoadedPresetName === "Mélodique") {
       perNote[index].long = true;
+    }
+    if (rules.noLongLastPresetSyncope && lastLoadedPresetName === "Syncopé") {
+      perNote[index].long = false;
     }
     if (rules.bendFirstIf3 && index === 0 && distanceToNextSixteenth !== null && distanceToNextSixteenth >= 3) {
       perNote[index].bend = true;
