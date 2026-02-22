@@ -943,7 +943,7 @@ const scheduleToneNote = (synth, timelineItem, noteOrnaments) => {
   }
 
   if (noteOrnaments.portamento && nextMidi !== null) {
-    const glideStart = Math.max(start, end - 0.15);
+    const glideStart = Math.max(start + duration / 2, end - 0.15);
     synth.frequency.setValueAtTime(baseFreq, glideStart);
     synth.frequency.linearRampToValueAtTime(midiToHz(nextMidi), end);
   } else if (noteOrnaments.fall) {
