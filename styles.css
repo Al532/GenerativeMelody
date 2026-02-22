@@ -165,6 +165,10 @@ textarea {
   color: var(--muted);
 }
 
+.mono-value {
+  width: 6ch;
+}
+
 .preset-row {
   margin-top: 16px;
   display: grid;

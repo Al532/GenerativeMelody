@@ -1,6 +1,6 @@
 import { instruments } from "./assets.js";
 
-const STORAGE_KEY = "melody-prototype-settings-v2";
+const STORAGE_KEY = "melody-prototype-settings-v3";
 const RHYTHM_PRESETS_KEY = "melody-prototype-rhythm-presets-v1";
 const MAX_CONSECUTIVE_LEAP_SEMITONES = 12;
 const FORBIDDEN_DESCENDING_LEAP_SEMITONES = new Set([-10]);
@@ -34,6 +34,17 @@ const DEFAULT_SETTINGS = {
   ambitusMax: "72",
   instrument: "Piano",
 };
+const DEFAULT_MONOSYNTH_SETTINGS = {
+  envelopeAttack: 0.005,
+  envelopeDecay: 0.04,
+  envelopeSustain: 0.85,
+  envelopeRelease: 0.08,
+  filterFrequency: 20000,
+  filterQ: 0,
+  filterEnvelopeBaseFrequency: 20000,
+  filterEnvelopeOctaves: 0,
+};
+
 
 const primaryTonesInput = document.querySelector("#primary-tones");
 const secondaryTonesInput = document.querySelector("#secondary-tones");
@@ -45,6 +56,22 @@ const bpmSlider = document.querySelector("#bpm-slider");
 const bpmValue = document.querySelector("#bpm-value");
 const repetitionPenaltySlider = document.querySelector("#repetition-penalty-slider");
 const repetitionPenaltyValue = document.querySelector("#repetition-penalty-value");
+const monoEnvelopeAttackInput = document.querySelector("#mono-envelope-attack");
+const monoEnvelopeAttackValue = document.querySelector("#mono-envelope-attack-value");
+const monoEnvelopeDecayInput = document.querySelector("#mono-envelope-decay");
+const monoEnvelopeDecayValue = document.querySelector("#mono-envelope-decay-value");
+const monoEnvelopeSustainInput = document.querySelector("#mono-envelope-sustain");
+const monoEnvelopeSustainValue = document.querySelector("#mono-envelope-sustain-value");
+const monoEnvelopeReleaseInput = document.querySelector("#mono-envelope-release");
+const monoEnvelopeReleaseValue = document.querySelector("#mono-envelope-release-value");
+const monoFilterFrequencyInput = document.querySelector("#mono-filter-frequency");
+const monoFilterFrequencyValue = document.querySelector("#mono-filter-frequency-value");
+const monoFilterQInput = document.querySelector("#mono-filter-q");
+const monoFilterQValue = document.querySelector("#mono-filter-q-value");
+const monoFilterEnvelopeBaseFrequencyInput = document.querySelector("#mono-filter-env-base-frequency");
+const monoFilterEnvelopeBaseFrequencyValue = document.querySelector("#mono-filter-env-base-frequency-value");
+const monoFilterEnvelopeOctavesInput = document.querySelector("#mono-filter-env-octaves");
+const monoFilterEnvelopeOctavesValue = document.querySelector("#mono-filter-env-octaves-value");
 const jumpSlidersContainer = document.querySelector("#jump-sliders");
 const tripletSlidersContainer = document.querySelector("#triplet-sliders");
 const afterTripletSlidersContainer = document.querySelector("#after-triplet-sliders");
@@ -71,6 +98,7 @@ const statusLabel = document.querySelector("#status");
 const resultInstrument = document.querySelector("#result-instrument");
 const resultPattern = document.querySelector("#result-pattern");
 const resultSequence = document.querySelector("#result-sequence");
+const resultVibratoConditions = document.querySelector("#result-vibrato-conditions");
 
 const DEFAULT_ORNAMENT_RULES = {
   longNoteE: false,
@@ -134,6 +162,7 @@ const AFTER_TRIPLET_KEYS = [
 
 const sliderBindings = new Map();
 let rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
+let monosynthSettings = structuredClone(DEFAULT_MONOSYNTH_SETTINGS);
 
 // IMPORTANT: toute nouvelle valeur ajoutée dans l’interface doit aussi être ajoutée
 // aux presets (sanitize/save/load) en conservant la compatibilité avec les presets existants.
@@ -407,6 +436,64 @@ const syncRhythmSettingsFromSliders = () => {
   rhythmSettings.repetitionProbabilityFactor = Number(repetitionPenaltySlider.value);
 };
 
+const sanitizeMonosynthSettings = (source) => ({
+  envelopeAttack: clamp(Number(source?.envelopeAttack ?? DEFAULT_MONOSYNTH_SETTINGS.envelopeAttack), 0.001, 0.1),
+  envelopeDecay: clamp(Number(source?.envelopeDecay ?? DEFAULT_MONOSYNTH_SETTINGS.envelopeDecay), 0.01, 0.5),
+  envelopeSustain: clamp(Number(source?.envelopeSustain ?? DEFAULT_MONOSYNTH_SETTINGS.envelopeSustain), 0, 1),
+  envelopeRelease: clamp(Number(source?.envelopeRelease ?? DEFAULT_MONOSYNTH_SETTINGS.envelopeRelease), 0.01, 1),
+  filterFrequency: clamp(Number(source?.filterFrequency ?? DEFAULT_MONOSYNTH_SETTINGS.filterFrequency), 60, 20000),
+  filterQ: clamp(Number(source?.filterQ ?? DEFAULT_MONOSYNTH_SETTINGS.filterQ), 0, 20),
+  filterEnvelopeBaseFrequency: clamp(
+    Number(source?.filterEnvelopeBaseFrequency ?? DEFAULT_MONOSYNTH_SETTINGS.filterEnvelopeBaseFrequency),
+    60,
+    20000
+  ),
+  filterEnvelopeOctaves: clamp(
+    Number(source?.filterEnvelopeOctaves ?? DEFAULT_MONOSYNTH_SETTINGS.filterEnvelopeOctaves),
+    0,
+    6
+  ),
+});
+
+const applyMonosynthSettingsToInputs = () => {
+  monoEnvelopeAttackInput.value = String(monosynthSettings.envelopeAttack);
+  monoEnvelopeAttackValue.textContent = monosynthSettings.envelopeAttack.toFixed(3);
+  monoEnvelopeDecayInput.value = String(monosynthSettings.envelopeDecay);
+  monoEnvelopeDecayValue.textContent = monosynthSettings.envelopeDecay.toFixed(2);
+  monoEnvelopeSustainInput.value = String(monosynthSettings.envelopeSustain);
+  monoEnvelopeSustainValue.textContent = monosynthSettings.envelopeSustain.toFixed(2);
+  monoEnvelopeReleaseInput.value = String(monosynthSettings.envelopeRelease);
+  monoEnvelopeReleaseValue.textContent = monosynthSettings.envelopeRelease.toFixed(2);
+  monoFilterFrequencyInput.value = String(monosynthSettings.filterFrequency);
+  monoFilterFrequencyValue.textContent = String(Math.round(monosynthSettings.filterFrequency));
+  monoFilterQInput.value = String(monosynthSettings.filterQ);
+  monoFilterQValue.textContent = monosynthSettings.filterQ.toFixed(1);
+  monoFilterEnvelopeBaseFrequencyInput.value = String(monosynthSettings.filterEnvelopeBaseFrequency);
+  monoFilterEnvelopeBaseFrequencyValue.textContent = String(Math.round(monosynthSettings.filterEnvelopeBaseFrequency));
+  monoFilterEnvelopeOctavesInput.value = String(monosynthSettings.filterEnvelopeOctaves);
+  monoFilterEnvelopeOctavesValue.textContent = monosynthSettings.filterEnvelopeOctaves.toFixed(1);
+};
+
+const syncMonosynthSettingsFromInputs = () => {
+  monosynthSettings = sanitizeMonosynthSettings({
+    envelopeAttack: monoEnvelopeAttackInput.value,
+    envelopeDecay: monoEnvelopeDecayInput.value,
+    envelopeSustain: monoEnvelopeSustainInput.value,
+    envelopeRelease: monoEnvelopeReleaseInput.value,
+    filterFrequency: monoFilterFrequencyInput.value,
+    filterQ: monoFilterQInput.value,
+    filterEnvelopeBaseFrequency: monoFilterEnvelopeBaseFrequencyInput.value,
+    filterEnvelopeOctaves: monoFilterEnvelopeOctavesInput.value,
+  });
+};
+
+const getVibratoConditionsDescription = (rules) => {
+  if (!rules.vibratoLongest) {
+    return "Désactivé (règle vibrato non cochée).";
+  }
+  return "Activé uniquement sur la note la plus longue, si elle est marquée « long » et sans bend.";
+};
+
 const setStatus = (message, isError = false) => {
   statusLabel.textContent = message;
   statusLabel.classList.toggle("error", isError);
@@ -422,6 +509,7 @@ const persistSettings = () => {
     ambitusMax: ambitusMaxInput.value,
     instrument: instrumentSelect.value,
     rhythmSettings,
+    monosynthSettings,
     ornamentRules,
     lastLoadedPresetName,
   };
@@ -438,9 +526,11 @@ const restoreSettings = () => {
     ambitusMaxInput.value = DEFAULT_SETTINGS.ambitusMax;
     instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
+    monosynthSettings = structuredClone(DEFAULT_MONOSYNTH_SETTINGS);
     ornamentRules = structuredClone(DEFAULT_ORNAMENT_RULES);
     lastLoadedPresetName = null;
     applyRhythmSettingsToSliders();
+    applyMonosynthSettingsToInputs();
     applyOrnamentRulesToInputs();
     return;
   }
@@ -458,16 +548,20 @@ const restoreSettings = () => {
       instrumentSelect.value = DEFAULT_SETTINGS.instrument;
     }
     rhythmSettings = sanitizeRhythmSettings(data.rhythmSettings ?? DEFAULT_RHYTHM_SETTINGS);
+    monosynthSettings = sanitizeMonosynthSettings(data.monosynthSettings ?? DEFAULT_MONOSYNTH_SETTINGS);
     ornamentRules = sanitizeOrnamentRules(data.ornamentRules ?? DEFAULT_ORNAMENT_RULES);
     lastLoadedPresetName = typeof data.lastLoadedPresetName === "string" ? data.lastLoadedPresetName : null;
     applyRhythmSettingsToSliders();
+    applyMonosynthSettingsToInputs();
     applyOrnamentRulesToInputs();
   } catch {
     localStorage.removeItem(STORAGE_KEY);
     rhythmSettings = structuredClone(DEFAULT_RHYTHM_SETTINGS);
+    monosynthSettings = structuredClone(DEFAULT_MONOSYNTH_SETTINGS);
     ornamentRules = structuredClone(DEFAULT_ORNAMENT_RULES);
     lastLoadedPresetName = null;
     applyRhythmSettingsToSliders();
+    applyMonosynthSettingsToInputs();
     applyOrnamentRulesToInputs();
   }
 };
@@ -978,7 +1072,7 @@ const scheduleToneNote = (synth, timelineItem, noteOrnaments) => {
   if (noteOrnaments.vibrato) {
     const vibratoDelay = 0.15;
     const vibratoStart = Math.min(start + vibratoDelay, end);
-    const vibratoDepth = baseFreq * (centsToRatio(50) - 1);
+    const vibratoDepth = baseFreq * (centsToRatio(100) - 1);
     const vibratoLfo = new Tone.Oscillator(8, "sine").start(vibratoStart);
     const vibratoGain = new Tone.Gain(vibratoDepth).connect(synth.frequency);
     vibratoLfo.connect(vibratoGain);
@@ -994,7 +1088,7 @@ const scheduleToneNote = (synth, timelineItem, noteOrnaments) => {
   synth.triggerAttackRelease(baseFreq, duration, start, 0.8);
 };
 
-const playSequenceWithTone = async (midiSequence, rhythm, rules) => {
+const playSequenceWithTone = async (midiSequence, rhythm, rules, monoSettings) => {
   await Tone.start();
   const startAt = Tone.now() + 0.05;
   const introSubdivisions = 8;
@@ -1008,18 +1102,18 @@ const playSequenceWithTone = async (midiSequence, rhythm, rules) => {
     oscillator: { type: "sawtooth" },
     filter: {
       type: "allpass",
-      frequency: 20000,
-      Q: 0,
+      frequency: monoSettings.filterFrequency,
+      Q: monoSettings.filterQ,
     },
     filterEnvelope: {
-      baseFrequency: 20000,
-      octaves: 0,
+      baseFrequency: monoSettings.filterEnvelopeBaseFrequency,
+      octaves: monoSettings.filterEnvelopeOctaves,
     },
     envelope: {
-      attack: 0.005,
-      decay: 0.04,
-      sustain: 0.85,
-      release: 0.08,
+      attack: monoSettings.envelopeAttack,
+      decay: monoSettings.envelopeDecay,
+      sustain: monoSettings.envelopeSustain,
+      release: monoSettings.envelopeRelease,
     },
   }).toDestination();
 
@@ -1188,6 +1282,7 @@ const handleGenerate = async () => {
     const toneGroups = createToneGroups();
     syncRhythmSettingsFromSliders();
     syncOrnamentRulesFromInputs();
+    syncMonosynthSettingsFromInputs();
     const rhythm = createRhythmPattern(rhythmSettings);
     const noteCount = rhythm.noteEvents.length;
     const midiSequence = buildMelody(
@@ -1202,9 +1297,10 @@ const handleGenerate = async () => {
     resultInstrument.textContent = "Sawtooth (Tone.js)";
     resultPattern.textContent = formatPatternForDisplay(rhythm.grid, rhythm.tripletStarts);
     resultSequence.textContent = labels.join(", ");
+    resultVibratoConditions.textContent = getVibratoConditionsDescription(ornamentRules);
 
     persistSettings();
-    await playSequenceWithTone(midiSequence, rhythm, ornamentRules);
+    await playSequenceWithTone(midiSequence, rhythm, ornamentRules, monosynthSettings);
 
     lastGeneratedSequence = { midiSequence, rhythm };
     replayButton.disabled = false;
@@ -1230,10 +1326,12 @@ const handleReplay = async () => {
 
   try {
     syncOrnamentRulesFromInputs();
+    syncMonosynthSettingsFromInputs();
     await playSequenceWithTone(
       lastGeneratedSequence.midiSequence,
       lastGeneratedSequence.rhythm,
-      ornamentRules
+      ornamentRules,
+      monosynthSettings
     );
     setStatus("Dernière séquence rejouée.");
   } catch (error) {
@@ -1250,6 +1348,7 @@ initializeRhythmSliders();
 restoreSettings();
 refreshPresetSelect();
 persistSettings();
+resultVibratoConditions.textContent = getVibratoConditionsDescription(ornamentRules);
 
 bpmSlider.addEventListener("input", () => {
   bpmValue.textContent = bpmSlider.value;
@@ -1275,6 +1374,23 @@ repetitionPenaltySlider.addEventListener("input", () => {
   element.addEventListener("change", persistSettings);
 });
 
+[
+  monoEnvelopeAttackInput,
+  monoEnvelopeDecayInput,
+  monoEnvelopeSustainInput,
+  monoEnvelopeReleaseInput,
+  monoFilterFrequencyInput,
+  monoFilterQInput,
+  monoFilterEnvelopeBaseFrequencyInput,
+  monoFilterEnvelopeOctavesInput,
+].forEach((input) => {
+  input.addEventListener("input", () => {
+    syncMonosynthSettingsFromInputs();
+    applyMonosynthSettingsToInputs();
+    persistSettings();
+  });
+});
+
 savePresetButton.addEventListener("click", handleSavePreset);
 loadPresetButton.addEventListener("click", handleLoadPreset);
 deletePresetButton.addEventListener("click", handleDeletePreset);
@@ -1288,6 +1404,7 @@ replayButton.addEventListener("click", handleReplay);
   ruleLongNoteEInput,
   ruleLongNoteBInput,
   ruleLongLastPresetMelodiqueInput,
+  ruleNoLongLastPresetSyncopeInput,
   ruleFallLastNoteInput,
   ruleFallInterval3Input,
   ruleBendFirstIf3Input,

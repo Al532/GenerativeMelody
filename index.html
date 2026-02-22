@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Prototype Génération de Mélodie</title>
-  <link rel="stylesheet" href="styles.css?v=38">
+  <link rel="stylesheet" href="styles.css?v=39">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <p class="site-version">Version du site&nbsp;: v38</p>
+  <p class="site-version">Version du site&nbsp;: v39</p>
   <header class="hero">
     <div>
       <p class="eyebrow">Prototype</p>
@@ -100,8 +100,44 @@
         <label><input id="rule-fall-last-note" type="checkbox"> Fall → dernière note (démarre à mi-note)</label>
         <label><input id="rule-fall-interval-3" type="checkbox"> Fall → note de catégorie A, pas « long », et distante d’au moins 3 double-croches avec la suivante</label>
         <label><input id="rule-bend-first-if-3" type="checkbox"> Bend → première note si sa longueur est d’au moins 3 double-croches</label>
-        <label><input id="rule-vibrato-longest" type="checkbox"> Vibrato → note la plus longue de la série (uniquement si « long » et sans bend)</label>
+        <label><input id="rule-vibrato-longest" type="checkbox"> Vibrato (± 1/2 ton) → note la plus longue de la série (uniquement si « long » et sans bend)</label>
         <label><input id="rule-portamento-before-largest-interval" type="checkbox"> Portamento → note avant le plus grand intervalle (si elle tient jusqu’à la suivante)</label>
+      </div>
+
+      <h3>Monosynth (mélodie uniquement)</h3>
+      <div class="slider-group" id="monosynth-sliders">
+        <label class="slider-row" for="mono-envelope-attack">
+          <span class="slider-label">Envelope attack (s)</span>
+          <div class="slider-input-wrap"><input id="mono-envelope-attack" type="range" min="0.001" max="0.1" step="0.001" value="0.005"><span class="slider-value mono-value" id="mono-envelope-attack-value">0.005</span></div>
+        </label>
+        <label class="slider-row" for="mono-envelope-decay">
+          <span class="slider-label">Envelope decay (s)</span>
+          <div class="slider-input-wrap"><input id="mono-envelope-decay" type="range" min="0.01" max="0.5" step="0.01" value="0.04"><span class="slider-value mono-value" id="mono-envelope-decay-value">0.04</span></div>
+        </label>
+        <label class="slider-row" for="mono-envelope-sustain">
+          <span class="slider-label">Envelope sustain</span>
+          <div class="slider-input-wrap"><input id="mono-envelope-sustain" type="range" min="0" max="1" step="0.01" value="0.85"><span class="slider-value mono-value" id="mono-envelope-sustain-value">0.85</span></div>
+        </label>
+        <label class="slider-row" for="mono-envelope-release">
+          <span class="slider-label">Envelope release (s)</span>
+          <div class="slider-input-wrap"><input id="mono-envelope-release" type="range" min="0.01" max="1" step="0.01" value="0.08"><span class="slider-value mono-value" id="mono-envelope-release-value">0.08</span></div>
+        </label>
+        <label class="slider-row" for="mono-filter-frequency">
+          <span class="slider-label">Filter frequency (Hz)</span>
+          <div class="slider-input-wrap"><input id="mono-filter-frequency" type="range" min="60" max="20000" step="10" value="20000"><span class="slider-value mono-value" id="mono-filter-frequency-value">20000</span></div>
+        </label>
+        <label class="slider-row" for="mono-filter-q">
+          <span class="slider-label">Filter Q</span>
+          <div class="slider-input-wrap"><input id="mono-filter-q" type="range" min="0" max="20" step="0.1" value="0"><span class="slider-value mono-value" id="mono-filter-q-value">0</span></div>
+        </label>
+        <label class="slider-row" for="mono-filter-env-base-frequency">
+          <span class="slider-label">Filter env base freq (Hz)</span>
+          <div class="slider-input-wrap"><input id="mono-filter-env-base-frequency" type="range" min="60" max="20000" step="10" value="20000"><span class="slider-value mono-value" id="mono-filter-env-base-frequency-value">20000</span></div>
+        </label>
+        <label class="slider-row" for="mono-filter-env-octaves">
+          <span class="slider-label">Filter env octaves</span>
+          <div class="slider-input-wrap"><input id="mono-filter-env-octaves" type="range" min="0" max="6" step="0.1" value="0"><span class="slider-value mono-value" id="mono-filter-env-octaves-value">0</span></div>
+        </label>
       </div>
 
       <div class="controls">
@@ -117,14 +153,15 @@
       <p><strong>Instrument:</strong> <span id="result-instrument">—</span></p>
       <p><strong>Pattern (4 temps):</strong> <span id="result-pattern">—</span></p>
       <p><strong>Série:</strong> <span id="result-sequence">—</span></p>
+      <p><strong>Conditions vibrato:</strong> <span id="result-vibrato-conditions">—</span></p>
     </section>
   </main>
 
   <footer>
-    <p>Version prototype v38: règles d’ornements activables par condition note-à-note.</p>
+    <p>Version prototype v39: vibrato ± 1/2 ton et réglages monosynth exposés en interface.</p>
   </footer>
 
-  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js?v=38"></script>
-  <script type="module" src="main.js?v=38"></script>
+  <script src="https://unpkg.com/tone@14.7.77/build/Tone.js?v=39"></script>
+  <script type="module" src="main.js?v=39"></script>
 </body>
 </html>
