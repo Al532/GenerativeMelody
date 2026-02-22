@@ -45,6 +45,27 @@ const DEFAULT_MONOSYNTH_SETTINGS = {
   filterEnvelopeOctaves: 0,
 };
 
+const ORNAMENT_ENGINE_CONFIG = {
+  bend: {
+    startCents: -200,
+    minDurationSeconds: 0.08,
+    durationRatio: 0.45,
+  },
+  portamento: {
+    startRatio: 0.5,
+    maxGlideSeconds: 0.15,
+  },
+  fall: {
+    startRatio: 0.5,
+    targetFreqRatio: 0.5,
+  },
+  vibrato: {
+    rateHz: 8,
+    delaySeconds: 0.15,
+    depthCents: 100,
+  },
+};
+
 
 const primaryTonesInput = document.querySelector("#primary-tones");
 const secondaryTonesInput = document.querySelector("#secondary-tones");
@@ -1058,47 +1079,62 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
   return perNote;
 };
 
-const scheduleToneNote = (synth, timelineItem, noteOrnaments) => {
+const createVibratoModulation = (synth, ornamentConfig) => {
+  const vibratoLfo = new Tone.LFO({
+    type: "sine",
+    frequency: ornamentConfig.vibrato.rateHz,
+    min: -1,
+    max: 1,
+  }).start();
+  const vibratoDepthGain = new Tone.Gain(0);
+  vibratoLfo.connect(vibratoDepthGain);
+  vibratoDepthGain.connect(synth.detune);
+  return { vibratoLfo, vibratoDepthGain };
+};
+
+const scheduleToneNote = (synth, timelineItem, noteOrnaments, ornamentConfig, modulation) => {
   const { midi, nextMidi, start, duration } = timelineItem;
   const baseFreq = midiToHz(midi);
   const end = start + duration;
-  const bendStartFreq = baseFreq * centsToRatio(-200);
-  const noteStartFreq = noteOrnaments.bend ? bendStartFreq : baseFreq;
 
-  synth.frequency.setValueAtTime(noteStartFreq, start);
+  synth.frequency.setValueAtTime(baseFreq, start);
+  synth.detune.setValueAtTime(noteOrnaments.bend ? ornamentConfig.bend.startCents : 0, start);
 
   if (noteOrnaments.bend) {
-    const bendRiseEnd = Math.min(end, start + Math.max(0.08, duration * 0.45));
-    synth.frequency.linearRampToValueAtTime(baseFreq, bendRiseEnd);
+    const bendRiseEnd = Math.min(
+      end,
+      start + Math.max(ornamentConfig.bend.minDurationSeconds, duration * ornamentConfig.bend.durationRatio)
+    );
+    synth.detune.linearRampToValueAtTime(0, bendRiseEnd);
   }
 
   if (noteOrnaments.portamento && nextMidi !== null) {
-    const glideStart = Math.max(start + duration / 2, end - 0.15);
+    const glideWindow = Math.min(ornamentConfig.portamento.maxGlideSeconds, duration * ornamentConfig.portamento.startRatio);
+    const glideStart = Math.max(start + duration * ornamentConfig.portamento.startRatio, end - glideWindow);
     synth.frequency.setValueAtTime(baseFreq, glideStart);
     synth.frequency.linearRampToValueAtTime(midiToHz(nextMidi), end);
   } else if (noteOrnaments.fall) {
-    const fallStart = start + duration / 2;
+    const fallStart = start + duration * ornamentConfig.fall.startRatio;
     synth.frequency.setValueAtTime(baseFreq, fallStart);
-    synth.frequency.linearRampToValueAtTime(baseFreq / 2, end);
+    synth.frequency.linearRampToValueAtTime(baseFreq * ornamentConfig.fall.targetFreqRatio, end);
   }
 
   if (noteOrnaments.vibrato) {
-    const vibratoDelay = 0.15;
-    const vibratoStart = Math.min(start + vibratoDelay, end);
-    const vibratoDepth = baseFreq * (centsToRatio(100) - 1);
-    const vibratoLfo = new Tone.Oscillator(8, "sine").start(vibratoStart);
-    const vibratoGain = new Tone.Gain(vibratoDepth).connect(synth.frequency);
-    vibratoLfo.connect(vibratoGain);
-    vibratoLfo.stop(end);
+    const vibratoStart = Math.min(start + ornamentConfig.vibrato.delaySeconds, end);
+    modulation.vibratoDepthGain.gain.setValueAtTime(0, start);
+    modulation.vibratoDepthGain.gain.setValueAtTime(ornamentConfig.vibrato.depthCents, vibratoStart);
+    modulation.vibratoDepthGain.gain.setValueAtTime(0, end);
   }
 
   if (noteOrnaments.bend) {
-    synth.triggerAttack(noteStartFreq, start, 0.8);
+    synth.triggerAttack(baseFreq, start, 0.8);
     synth.triggerRelease(end);
+    synth.detune.setValueAtTime(0, end);
     return;
   }
 
   synth.triggerAttackRelease(baseFreq, duration, start, 0.8);
+  synth.detune.setValueAtTime(0, end);
 };
 
 const playSequenceWithTone = async (midiSequence, rhythm, rules, monoSettings) => {
@@ -1133,6 +1169,7 @@ const playSequenceWithTone = async (midiSequence, rhythm, rules, monoSettings) =
   const toneGroups = createToneGroups();
   const timeline = createPlayableTimeline(midiSequence, rhythm, { long: false }, toneGroups);
   const noteOrnaments = resolveOrnamentsPerNote(timeline, midiSequence, rules);
+  const modulation = createVibratoModulation(synth, ORNAMENT_ENGINE_CONFIG);
   const backingTrackPlayer = await getBackingTrackPlayer();
   backingTrackPlayer.stop(startAt);
   backingTrackPlayer.start(backingTrackStartAt);
@@ -1144,7 +1181,7 @@ const playSequenceWithTone = async (midiSequence, rhythm, rules, monoSettings) =
       if (noteOrnaments[index].long) {
         mergedItem.duration = item.naturalDuration;
       }
-      scheduleToneNote(synth, mergedItem, noteOrnaments[index]);
+      scheduleToneNote(synth, mergedItem, noteOrnaments[index], ORNAMENT_ENGINE_CONFIG, modulation);
     });
   }
 
@@ -1154,6 +1191,8 @@ const playSequenceWithTone = async (midiSequence, rhythm, rules, monoSettings) =
     0.3;
   window.setTimeout(() => {
     backingTrackPlayer.stop();
+    modulation.vibratoLfo.dispose();
+    modulation.vibratoDepthGain.dispose();
     synth.dispose();
     drumNodes.hiHat.dispose();
     drumNodes.hiHatFilter.dispose();
