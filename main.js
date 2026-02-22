@@ -882,17 +882,18 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
     if (rules.longLastPresetMelodique && lastLoadedPresetName === "Mélodique") {
       perNote[index].long = true;
     }
+    if (rules.bendFirstIf3 && index === 0 && distanceToNextSixteenth !== null && distanceToNextSixteenth >= 3) {
+      perNote[index].bend = true;
+    }
     if (
       rules.fallInterval3 &&
       item.category === "A" &&
       !perNote[index].long &&
+      !perNote[index].bend &&
       distanceToNextSixteenth !== null &&
       distanceToNextSixteenth >= 3
     ) {
       fallIntervalCandidates.push(index);
-    }
-    if (rules.bendFirstIf3 && index === 0 && distanceToNextSixteenth !== null && distanceToNextSixteenth >= 3) {
-      perNote[index].bend = true;
     }
     if (
       rules.vibratoLongest &&
@@ -920,9 +921,14 @@ const resolveOrnamentsPerNote = (timeline, midiSequence, rules) => {
   if (fallIntervalCandidates.length > 0) {
     const randomCandidateIndex = Math.floor(Math.random() * fallIntervalCandidates.length);
     const selectedIndex = fallIntervalCandidates[randomCandidateIndex];
-    perNote[selectedIndex].fall = true;
+    if (!perNote[selectedIndex].bend) {
+      perNote[selectedIndex].fall = true;
+    }
   } else if (rules.fallLastNote && timeline.length > 0) {
-    perNote[timeline.length - 1].fall = true;
+    const lastNoteIndex = timeline.length - 1;
+    if (!perNote[lastNoteIndex].bend) {
+      perNote[lastNoteIndex].fall = true;
+    }
   }
 
   return perNote;
