@@ -190,6 +190,20 @@ const midiToLabel = (midi) => {
 
 const midiToHz = (midi) => Number(Tone.Frequency(midi, "midi").toFrequency());
 
+const getPitchClassCategory = (toneGroups, midi) => {
+  const pitchClass = midi % 12;
+  if (toneGroups.primary.has(pitchClass)) {
+    return "A";
+  }
+  if (toneGroups.secondary.has(pitchClass)) {
+    return "B";
+  }
+  if (toneGroups.forbidden.has(pitchClass)) {
+    return "C";
+  }
+  return "E";
+};
+
 const sanitizeOrnamentRules = (source) => ({
   longNoteE: Boolean(source?.longNoteE),
   longNoteB: Boolean(source?.longNoteB),
@@ -620,20 +634,6 @@ const createRhythmPattern = (settings) => {
 };
 
 const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabilityFactor) => {
-  const pitchClassCategory = (midi) => {
-    const pitchClass = midi % 12;
-    if (toneGroups.primary.has(pitchClass)) {
-      return "A";
-    }
-    if (toneGroups.secondary.has(pitchClass)) {
-      return "B";
-    }
-    if (toneGroups.forbidden.has(pitchClass)) {
-      return "C";
-    }
-    return "E";
-  };
-
   const isTransitionAllowed = (
     prevPrevMidi,
     prevMidi,
@@ -685,7 +685,7 @@ const buildMelody = (minMidi, maxMidi, noteCount, toneGroups, repetitionProbabil
 
   const playable = [];
   for (let midi = minMidi; midi <= maxMidi; midi += 1) {
-    const category = pitchClassCategory(midi);
+    const category = getPitchClassCategory(toneGroups, midi);
     if (category !== "C") {
       playable.push({ midi, category });
     }
@@ -824,7 +824,7 @@ const scheduleDrumsWithTone = (startAt, rhythm, totalSubdivisions, introSubdivis
   return { hiHat, hiHatFilter, kick };
 };
 
-const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments) => {
+const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments, toneGroups) => {
   const subdivDur = (60 / rhythm.bpm) / 4;
   return midiSequence.map((midi, index) => {
     const event = rhythm.noteEvents[index];
@@ -840,7 +840,7 @@ const createPlayableTimeline = (midiSequence, rhythm, activeOrnaments) => {
     return {
       midi,
       nextMidi,
-      category: pitchClassCategory(midi),
+      category: getPitchClassCategory(toneGroups, midi),
       start,
       duration,
       naturalDuration,
@@ -987,7 +987,8 @@ const playSequenceWithTone = async (midiSequence, rhythm, rules) => {
     },
   }).toDestination();
 
-  const timeline = createPlayableTimeline(midiSequence, rhythm, { long: false });
+  const toneGroups = createToneGroups();
+  const timeline = createPlayableTimeline(midiSequence, rhythm, { long: false }, toneGroups);
   const noteOrnaments = resolveOrnamentsPerNote(timeline, midiSequence, rules);
   const backingTrackPlayer = await getBackingTrackPlayer();
   backingTrackPlayer.stop(startAt);
